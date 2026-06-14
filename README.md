@@ -14,6 +14,26 @@ Easily query categories, search items, filter tags/genres, track graveyard dead 
 
 ---
 
+## What Can This API Be Used For?
+
+This API turns the community-curated [EverythingMoe](https://everythingmoe.com/) directory into a programmable data source. Here are some practical things you can build with it:
+
+| Use Case | How |
+|---|---|
+| **Anime / Manga Site Aggregator** | Pull ranked listings across 26+ categories (streaming, manga, novel, donghua, music, etc.) and display them in your own frontend or mobile app. |
+| **Discord / Telegram Bot** | Let users search for sites, browse categories, or check if a site is dead — all via bot commands backed by the `/search`, `/categories`, and `/graveyard` endpoints. |
+| **Site Health Monitor** | Poll the `/graveyard` and `/activity` endpoints on a schedule to detect when a popular site goes down or comes back, and send alerts. |
+| **Recommendation / Discovery Engine** | Use tag-based filtering (`tag:Torrent`, `tag:Dub`, etc.) and genre endpoints to build a personalised recommendation feed. |
+| **Research & Analytics Dashboard** | Aggregate category sizes, review sentiments, dead-site trends, and changelog frequency into charts and reports. |
+| **Mirror / Proxy Finder** | Query `/sites/{slug}` to programmatically retrieve a site's alternative/mirror links, screenshots, and community reviews. |
+| **NSFW Content Filter Testing** | Toggle the `nsfw` parameter to compare filtered vs. unfiltered results for content-moderation research. |
+| **Automated Testing & CI Pipelines** | Integrate the Python library (`EverythingMoeAPI` class) into test harnesses that verify third-party site availability. |
+
+> [!TIP]
+> The API is fully stateless — every endpoint returns clean JSON with Pydantic-validated schemas, making it trivial to integrate into any language or framework.
+
+---
+
 ## Features
 
 - **Asynchronous Web Server**: Powered by **FastAPI** & **Uvicorn** for high-concurrency performance.
