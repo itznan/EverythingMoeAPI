@@ -1,4 +1,4 @@
-# 🌀 EverythingMoe API & Web Service
+# EverythingMoe API & Web Service
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python Version](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
@@ -14,19 +14,19 @@ Easily query categories, search items, filter tags/genres, track graveyard dead 
 
 ---
 
-## ✨ Features
+## Features
 
-- 🚀 **Asynchronous Web Server**: Powered by **FastAPI** & **Uvicorn** for high-concurrency performance.
-- 📦 **Pydantic V2 Validation**: All request and response structures are validated with robust, strict Pydantic models.
-- 🔍 **Universal Search**: Supports general text search as well as tag-based filtering (e.g. `tag:Torrent`).
-- 🔞 **NSFW Bypass**: Built-in toggle to bypass NSFW filtering (`nsfw=true` cookie integration).
-- 🗂️ **Deep Category Extraction**: Extracts both high-ranked items (server-side rendered) and low-ranked items (from dynamic lowsec JSON endpoints).
-- 🪦 **Graveyard & Activity Monitors**: Built-in routes to extract dead sites with downing reasons and activity updates.
-- 🧪 **100% Mocked Test Coverage**: 38 clean unit/integration/API tests that run offline in milliseconds.
+- **Asynchronous Web Server**: Powered by **FastAPI** & **Uvicorn** for high-concurrency performance.
+- **Pydantic V2 Validation**: All request and response structures are validated with robust, strict Pydantic models.
+- **Universal Search**: Supports general text search as well as tag-based filtering (e.g. `tag:Torrent`).
+- **NSFW Bypass**: Built-in toggle to bypass NSFW filtering (`nsfw=true` cookie integration).
+- **Deep Category Extraction**: Extracts both high-ranked items (server-side rendered) and low-ranked items (from dynamic lowsec JSON endpoints).
+- **Graveyard & Activity Monitors**: Built-in routes to extract dead sites with downing reasons and activity updates.
+- **100% Mocked Test Coverage**: 38 clean unit/integration/API tests that run offline in milliseconds.
 
 ---
 
-## 📂 Project Architecture
+## Project Architecture
 
 The workspace follows a highly structured, scalable FastAPI layout:
 
@@ -44,7 +44,7 @@ The workspace follows a highly structured, scalable FastAPI layout:
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Installation
 
@@ -75,7 +75,7 @@ Navigate to:
 
 ---
 
-## 📡 REST API Documentation
+## REST API Documentation
 
 ### System
 - `GET /health` : Check service status.
@@ -97,7 +97,7 @@ Navigate to:
 
 ---
 
-## 💻 Python Library Usage
+## Python Library Usage
 
 You can also use the scraper engine as a standalone python library in other projects:
 
@@ -114,7 +114,7 @@ print(f"Name: {details.title} | Mirrors: {details.alternative_links}")
 
 ---
 
-## 🧪 Testing
+## Testing
 
 The repository includes a comprehensive test suite (38 unit/integration tests). Run them locally with:
 
@@ -124,6 +124,6 @@ python -m pytest
 
 ---
 
-## 📄 License
+## License
 
 Distributed under the MIT License. See `LICENSE` for details.
