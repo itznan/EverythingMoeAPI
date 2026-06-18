@@ -28,6 +28,4 @@ Thumbs.db
 htmlcov/
 .coverage
 
-# Temporary files
-homepage.html
 
