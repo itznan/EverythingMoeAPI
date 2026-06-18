@@ -27,3 +27,7 @@ Thumbs.db
 .pytest_cache/
 htmlcov/
 .coverage
+
+# Temporary files
+homepage.html
+

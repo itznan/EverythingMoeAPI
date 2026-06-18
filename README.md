@@ -7,7 +7,7 @@
 
 An unofficial, robust **Python scraper client wrapper** and **FastAPI Web Service** that exposes clean JSON API endpoints for [everythingmoe.com](https://everythingmoe.com/). 
 
-Easily query categories, search items, filter tags/genres, track graveyard dead sites, and monitor recent changelogs or comments.
+Easily query categories, search items, filter tags/genres, track graveyard dead sites, monitor site statistics and changelog activity, and look up lightweight expand data for any site.
 
 > [!NOTE]
 > This project is designed as a standalone, deployable web service. It translates server-side rendered website contents and dynamic pagination endpoints into clean, validated JSON schemas.
@@ -42,6 +42,10 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 - **NSFW Bypass**: Built-in toggle to bypass NSFW filtering (`nsfw=true` cookie integration).
 - **Deep Category Extraction**: Extracts both high-ranked items (server-side rendered) and low-ranked items (from dynamic lowsec JSON endpoints).
 - **Graveyard & Activity Monitors**: Built-in routes to extract dead sites with downing reasons and activity updates.
+- **Menu & Tag Definitions**: Structured category navigation menu and full tag/filter glossary endpoints.
+- **Site Statistics**: Current and historical aggregate stats (entries, users, comments, reviews).
+- **Lightweight Expand**: Fast `/expand` endpoint for pros/cons/altlinks without full page scraping.
+- **Comment Counts**: Per-site comment count lookup from EverythingMoe's thread counters.
 - **100% Mocked Test Coverage**: 38 clean unit/integration/API tests that run offline in milliseconds.
 
 ---
@@ -102,20 +106,115 @@ Navigate to:
 
 ### Categories
 - `GET /categories` : Get ID-to-label mapping for all 26 categories.
-- `GET /categories/{category}/items` : Fetch all listings in a category (e.g. `streaming`, `manga`, `novel`, `game`).
+- `GET /categories/{category}/items` : Fetch all listings in a category (e.g. `streaming`, `manga`, `novel`, `game`, `western`, `gacha`, `quiz`).
 
 ### Search & Genres
 - `GET /search?q={query}&category={category}` : Search items. Filter tags by prefixing query with `tag:` (e.g. `/search?q=tag:Torrent`).
 - `GET /genres/{genre}` : Filter items by tag name or redirect directly to category if name matches.
 
+### Menu & Navigation
+- `GET /menu` : Fetch the site's full category navigation menu with display names, accent colors, and NSFW flags.
+
+### Tag Definitions
+- `GET /tags` : Fetch all tag/filter definitions with descriptions (e.g. what `nsfw`, `hia`, `scan`, `mtl`, `ddl` mean).
+
 ### Details & Metadata
-- `GET /sites/{id_or_slug}` : Get mirror links, editorial pros/cons, community reviews, and screenshot links for a site (e.g. `/sites/anikoto`).
+- `GET /sites/{id_or_slug}` : Get full metadata, editorial pros/cons, community reviews, and screenshot links (scrapes the full page).
+- `GET /sites/{id_or_slug}/expand` : **Lightweight** — fetch only pros/cons/info/alt-links from `/data/expand/{id}.json` (works for active **and** dead sites, much faster).
+- `GET /sites/{id_or_slug}/comments` : Get the comment count for a specific site's page.
+
+### Statistics
+- `GET /stats` : Get the latest aggregate directory statistics (entries, users, comments, reviews, timestamp).
+- `GET /stats/history/{date}` : Get a historical snapshot of stats for a date in `YYYYMMDD` format (e.g. `20260617`).
 
 ### Graveyard & Logs
 - `GET /graveyard` : List all dead/archived sites.
 - `GET /activity` : Retrieve recent changelogs, review submissions, and comments.
 
 ---
+
+## API vs Raw JSON Files — What This API Adds
+
+[everythingmoe.com](https://everythingmoe.com/) exposes two raw cache files:
+- `/data/cache/main.json` — **896 active site entries**
+- `/data/cache/dead.json` — **200+ dead site entries**
+
+Each entry contains only **4-5 raw unparsed text blobs**:
+
+```json
+"anikoto": {
+  "positive": "Large library#Reupload Hianime videos#...",
+  "negative": "Hard subs depend on AniNeko#Bad ads",
+  "info":     "note: It has many alt domain and brand names.",
+  "altlink":  "mirrors<<https://anikoto.site#anisuge<<https://anisuge.tv/home#..."
+}
+```
+
+### **11 Additional Features Not Available in Raw JSON Files**
+
+This API provides **11 major features** that don't exist in `main.json` or `dead.json`:
+
+1. **Search Functionality** — Full-text and tag-based search via backend API
+2. **Real-time Activity Feed** — Live changelogs, reviews, and comments
+3. **Statistics & Analytics** — Aggregate directory stats (entries, users, comments)
+4. **Historical Statistics** — Time-series stats snapshots by date
+5. **Tag Definitions** — Human-readable glossary for all filter tags
+6. **Navigation Menu** — Category icons, colors, and NSFW flags
+7. **Detailed Site Information** — Screenshots, user reviews, ratings
+8. **Comment Counts** — Per-site comment/review counts
+9. **Expanded Site Data** — Historical data, domain aliases, extra links
+10. **Changelog History** — Full RSS-based changelog with timestamps
+11. **Category Filtering** — Structured category extraction and filtering
+
+Here is exactly what is **exclusive to this API** and does not exist anywhere in the raw JSON files:
+
+### Fields added by `GET /sites/{id}` (HTML scrape)
+
+| Field | Source | Description |
+|---|---|---|
+| `id` | HTML scrape | Unique site slug |
+| `title` | HTML scrape | Display name |
+| `url` | HTML scrape | Live URL |
+| `icon_url` | HTML scrape | Logo from CDN |
+| `rank` | HTML scrape | e.g. `"1 Streaming"` |
+| `type` | HTML scrape | Category (`streaming`, `manga`…) |
+| `filter_tags` | HTML scrape | e.g. `["Scraper", "Modern interface"]` |
+| `is_nsfw` | HTML scrape | Boolean |
+| `is_licensed` | HTML scrape | Boolean |
+| `is_dead` | HTML scrape | Boolean |
+| `dead_reason` | HTML scrape | Shutdown date/reason |
+| `screenshots` | HTML scrape | Screenshot URLs + type |
+| `user_reviews` | HTML scrape | Full reviews with rating, votes, timestamp |
+
+### Fields parsed & structured FROM `main.json` (raw → clean)
+
+| API Field | `main.json` raw key | What the API does |
+|---|---|---|
+| `positive_reviews` | `"positive"` | Splits `"A#B#C"` → `["A", "B", "C"]` |
+| `negative_reviews` | `"negative"` | Splits `"A#B"` → `["A", "B"]` |
+| `info_notes` | `"info"` | Splits into list |
+| `alternative_links` | `"altlink"` | Parses `"name<<url#name2<<url2"` → `{"name": "url", ...}` |
+| `ex_alternative_links` | `"ex-altlink"` | Same format — previous/expired domains |
+
+### Whole endpoints with zero equivalent in `main.json`
+
+| Endpoint | Data Source | Description |
+|---|---|---|
+| `GET /menu` | `/data/cache/menu.json` | Category icons, colors, NSFW flags |
+| `GET /tags` | `/data/tags.json` | 26 tag definitions/glossary |
+| `GET /stats` | `/data/cache/site-stats.json` | Live directory stats |
+| `GET /stats/history/{date}` | `/data/cache/statshistory/` | Historical stats snapshots |
+| `GET /sites/{id}/comments` | `/comments/threadcount.json` | Per-site comment count |
+| `GET /graveyard` | `/graveyard` HTML | All dead sites with reasons |
+| `GET /activity` | `/comments/api?activity=true` | Changelogs, reviews, comments feed |
+| `GET /search` | `/backend/search` POST | Full text + tag-based search |
+| `GET /genres/{genre}` | Cross-endpoint | Tag-based cross-category filtering |
+| `GET /categories` | Homepage HTML | Full category dropdown list |
+| `GET /categories/{cat}/items` | HTML + lowsec JSON | Full ranked + low-ranked listings |
+
+> [!TIP]
+> `main.json` is only a raw text cache used internally by the website's frontend JS. This API is the only way to access the full structured, validated, and enriched data programmatically.
+
 
 ## Python Library Usage
 
@@ -127,9 +226,33 @@ from utils.client import EverythingMoeAPI
 # Initialize client
 api = EverythingMoeAPI(include_nsfw=True)
 
-# Fetch specific site details
+# Fetch specific site details (full scrape)
 details = api.get_site("hentaitv")
 print(f"Name: {details.title} | Mirrors: {details.alternative_links}")
+
+# Lightweight expand (no scraping, just JSON)
+expand = api.get_site_expand("anikoto")
+print(f"Pros: {expand.positive_reviews}")
+
+# Get category navigation menu
+menu = api.get_menu()
+print(f"Categories: {[m.id for m in menu]}")
+
+# Get tag definitions
+tags = api.get_tags()
+print(f"Tags: {[t.tag for t in tags]}")
+
+# Get current stats
+stats = api.get_stats()
+print(f"Total entries: {stats.entries}, Users: {stats.users}")
+
+# Historical stats
+hist = api.get_stats_history("20260617")
+print(f"Stats on 2026-06-17: {hist.entries} entries")
+
+# Comment count for a site
+cc = api.get_site_comment_count("anikoto")
+print(f"Comments on anikoto: {cc.comment_count}")
 ```
 
 ---

@@ -9,11 +9,18 @@ from bs4 import BeautifulSoup, Tag
 
 from models.schemas import (
     ChangelogEntry,
+    ChangelogRSS,
+    ChangelogRSSItem,
+    CategoryMenuItem,
     RecentActivity,
     Review,
     Screenshot,
     SearchResult,
     SiteDetails,
+    SiteExpand,
+    SiteStats,
+    StatsHistory,
+    TagDefinition,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -255,3 +262,126 @@ def parse_activity(data: dict) -> RecentActivity:
         reviews=data.get("reviews", []),
         comments=data.get("comments", []),
     )
+
+
+def parse_menu(data: list) -> List[CategoryMenuItem]:
+    """Convert ``/data/cache/menu.json`` list into :class:`CategoryMenuItem` objects."""
+    items: List[CategoryMenuItem] = []
+    for entry in data:
+        cat_id = entry.get("id", "")
+        if not cat_id:
+            continue
+        items.append(CategoryMenuItem(
+            id=cat_id,
+            short=entry.get("short"),
+            shortextra=entry.get("shortextra"),
+            color=entry.get("color"),
+            nsfw=bool(entry.get("nsfw", False)),
+        ))
+    return items
+
+
+def parse_tags(data: dict) -> List[TagDefinition]:
+    """Convert ``/data/tags.json`` dict into :class:`TagDefinition` list."""
+    return [
+        TagDefinition(tag=tag, description=description)
+        for tag, description in data.items()
+    ]
+
+
+def parse_stats(data: dict) -> SiteStats:
+    """Convert ``/data/cache/site-stats.json`` dict into :class:`SiteStats`."""
+    return SiteStats(
+        entries=data.get("entries", 0),
+        category=data.get("category", 0),
+        users=data.get("users", 0),
+        comments=data.get("comments", 0),
+        reviews=data.get("reviews", 0),
+        time=data.get("time", 0),
+    )
+
+
+def parse_stats_history(data: dict, date: str) -> StatsHistory:
+    """Convert a ``/data/cache/statshistory/{date}.json`` dict into :class:`StatsHistory`."""
+    return StatsHistory(
+        date=date,
+        entries=data.get("entries", 0),
+        category=data.get("category", 0),
+        users=data.get("users", 0),
+        comments=data.get("comments", 0),
+        reviews=data.get("reviews", 0),
+        time=data.get("time", 0),
+    )
+
+
+def _split_list(raw: str) -> List[str]:
+    """Split a '#'-delimited string into a clean list, ignoring empty entries."""
+    return [x.strip() for x in raw.split("#") if x.strip()] if raw else []
+
+
+def _split_extra_links(raw: str) -> List[str]:
+    """Split extra-link / extralink values (comma or '#' separated URLs)."""
+    if not raw:
+        return []
+    parts = raw.split("#") if "#" in raw else raw.split(",")
+    return [p.strip() for p in parts if p.strip()]
+
+
+def parse_expand(data: dict, base_url: str = "") -> SiteExpand:
+    """Convert a ``/data/expand/{id}.json`` response into :class:`SiteExpand`.
+
+    Handles all known field variants discovered in both ``main.json`` and
+    ``dead.json``, including historical ``ex-``/``exx-``/``exxx-`` prefixes,
+    domain aliases, notes, and extra links.
+    """
+    return SiteExpand(
+        # Current pros / cons / info
+        positive_reviews=_split_list(data.get("positive", "")),
+        negative_reviews=_split_list(data.get("negative", "")),
+        info_notes=_split_list(data.get("info", "")),
+        note=data.get("note") or None,
+
+        # Mirror / alt links
+        alternative_links=parse_altlinks(data.get("altlink"), base_url),
+        ex_alternative_links=parse_altlinks(data.get("ex-altlink"), base_url),
+        ex_alternative_links2=parse_altlinks(data.get("ex-altlink2"), base_url),
+        exx_alternative_links=parse_altlinks(data.get("exx-altlink"), base_url),
+        reserve_altlink=data.get("reserve-altlink") or None,
+
+        # Historical ex- variants
+        ex_positive_reviews=_split_list(data.get("ex-positive", "")),
+        ex_negative_reviews=_split_list(data.get("ex-negative", "")),
+        ex_info_notes=_split_list(data.get("ex-info", "")),
+        ex_note=data.get("ex-note") or None,
+        exx_info_notes=_split_list(data.get("exx-info", "")),
+        exxx_info_notes=_split_list(data.get("exxx-info", "")),
+
+        # Extra metadata
+        alt_name=data.get("altname") or None,
+        domains=data.get("domains") or None,
+        extra_links=_split_extra_links(data.get("extra-link") or data.get("extralink") or ""),
+        extra=data.get("extra") or None,
+        potential=data.get("potential") or None,
+    )
+
+
+def parse_changelog_rss(xml_content: str) -> ChangelogRSS:
+    """Parse the changelog RSS feed XML into :class:`ChangelogRSS`."""
+    soup = BeautifulSoup(xml_content, "xml")
+    items: List[ChangelogRSSItem] = []
+    
+    for item in soup.find_all("item"):
+        title_tag = item.find("title")
+        link_tag = item.find("link")
+        guid_tag = item.find("guid")
+        pub_date_tag = item.find("pubDate")
+        
+        if title_tag and link_tag:
+            items.append(ChangelogRSSItem(
+                title=title_tag.text.strip(),
+                link=link_tag.text.strip(),
+                guid=guid_tag.text.strip() if guid_tag else "",
+                pub_date=pub_date_tag.text.strip() if pub_date_tag else "",
+            ))
+    
+    return ChangelogRSS(items=items)

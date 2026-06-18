@@ -28,3 +28,15 @@ CATEGORY_TO_LOWSEC: dict[str, str] = {
     "vtuber": "vtuber",
     "forums": "forums",
 }
+
+# Categories that exist on the homepage but have no lowsec JSON file
+NO_LOWSEC_CATEGORIES: set[str] = {
+    "game",
+    "western",
+    "quiz",
+    "trend",
+    "gacha",
+    "cosplay",
+    "amv",
+    "tools",
+}

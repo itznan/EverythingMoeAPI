@@ -5,7 +5,7 @@ from typing import Any, Dict, List
 
 import requests
 
-from models.schemas import RecentActivity, SearchResult, SiteDetails
+from models.schemas import RecentActivity, SearchResult, SiteDetails, CategoryMenuItem, TagDefinition, SiteStats, StatsHistory, SiteExpand, SiteCommentCount, ChangelogRSS
 from utils.constants import BASE_URL, CATEGORY_TO_LOWSEC, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT
 from utils.exceptions import (
     EverythingMoeError,
@@ -16,11 +16,17 @@ from utils.exceptions import (
 from utils.parsers import (
     parse_activity,
     parse_categories,
+    parse_changelog_rss,
+    parse_expand,
     parse_graveyard_items,
     parse_lowsec_items,
+    parse_menu,
     parse_search_results,
     parse_section_items,
     parse_site_data,
+    parse_stats,
+    parse_stats_history,
+    parse_tags,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -173,3 +179,90 @@ class EverythingMoeAPI:
             "It does not index individual anime episodes. Returning empty list."
         )
         return []
+
+    def get_menu(self) -> List[CategoryMenuItem]:
+        """Fetch the category navigation menu with icons, colors, and NSFW flags."""
+        try:
+            resp = self._request("GET", "/data/cache/menu.json")
+            return parse_menu(resp.json())
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch menu: {exc}") from exc
+
+    def get_tags(self) -> List[TagDefinition]:
+        """Fetch tag definitions explaining what each filter/add-tag means."""
+        try:
+            resp = self._request("GET", "/data/tags.json")
+            return parse_tags(resp.json())
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch tags: {exc}") from exc
+
+    def get_stats(self) -> SiteStats:
+        """Fetch the latest aggregate statistics for the EverythingMoe directory."""
+        try:
+            resp = self._request("GET", "/data/cache/site-stats.json")
+            return parse_stats(resp.json())
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch stats: {exc}") from exc
+
+    def get_stats_history(self, date: str) -> StatsHistory:
+        """Fetch historical statistics for a specific date (format: YYYYMMDD)."""
+        try:
+            resp = self._request("GET", f"/data/cache/statshistory/{date}.json")
+            return parse_stats_history(resp.json(), date)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch stats history for {date}: {exc}") from exc
+
+    def get_site_expand(self, id_or_slug: str) -> SiteExpand:
+        """Fetch expanded pros/cons/info/alt-links for a site directly from /data/expand/.
+
+        This is a fast, lightweight alternative to scraping the full site detail page.
+        Works for both active and dead (graveyard) sites.
+        """
+        try:
+            resp = self._request("GET", f"/data/expand/{id_or_slug}.json")
+            return parse_expand(resp.json(), self.base_url)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch expand data for '{id_or_slug}': {exc}") from exc
+
+    def get_site_comment_count(self, id_or_slug: str) -> SiteCommentCount:
+        """Fetch the comment count and review count for a specific site page."""
+        try:
+            thread_key = f"/s/{id_or_slug}"
+            tc_resp = self._request("GET", "/comments/threadcount.json")
+            trc_resp = self._request("GET", "/comments/threadreviewcount.json")
+            tc_data = tc_resp.json()
+            trc_data = trc_resp.json()
+            comment_count = tc_data.get(thread_key, 0) or 0
+            # trc_data maps review paths like /review/ID -> count
+            # We look at total reviews, not per-site
+            return SiteCommentCount(
+                site_id=id_or_slug,
+                comment_count=comment_count,
+                review_count=0,  # thread review counts are by review ID, not by site
+            )
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch comment count for '{id_or_slug}': {exc}") from exc
+
+    def get_changelog(self) -> ChangelogRSS:
+        """Fetch the full changelog from the RSS feed."""
+        try:
+            url = "https://static.everythingmoe.com/feeds/changelog.xml"
+            resp = self.session.get(url, timeout=self.timeout)
+            resp.raise_for_status()
+            return parse_changelog_rss(resp.text)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch changelog: {exc}") from exc
