@@ -77,8 +77,8 @@ The workspace follows a highly structured, scalable FastAPI layout:
 
 Clone this repository and install the package with dev dependencies (required for testing):
 
-`git clone https://github.com/yourusername/everythingmoe-api.git`
-`cd everythingmoe-api`
+`git clone https://github.com/itznan/EverythingMoeAPI.git`
+`cd EverythingMoeAPI`
 `pip install -e .[dev]`
 
 ### 2. Running the Server
