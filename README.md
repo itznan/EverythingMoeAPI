@@ -3,11 +3,11 @@
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Python Version](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests Status](https://img.shields.io/badge/Tests-38%20Passed-success?style=for-the-badge&logo=pytest)](https://pytest.org)
+[![Tests Status](https://img.shields.io/badge/Tests-53%20Passed-success?style=for-the-badge&logo=pytest)](https://pytest.org)
 
 An unofficial, robust **Python scraper client wrapper** and **FastAPI Web Service** that exposes clean JSON API endpoints for [everythingmoe.com](https://everythingmoe.com/). 
 
-Easily query categories, search items, filter tags/genres, track graveyard dead sites, monitor site statistics and changelog activity, and look up lightweight expand data for any site.
+Easily query categories, search items, filter tags/genres, track graveyard dead sites, monitor site statistics and changelog activity, lookup lightweight expand data, submit user contributions, verify live uptime status maps, list guides/articles, and retrieve parsed static description layouts.
 
 > [!NOTE]
 > This project is designed as a standalone, deployable web service. It translates server-side rendered website contents and dynamic pagination endpoints into clean, validated JSON schemas.
@@ -46,7 +46,10 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 - **Site Statistics**: Current and historical aggregate stats (entries, users, comments, reviews).
 - **Lightweight Expand**: Fast `/expand` endpoint for pros/cons/altlinks without full page scraping.
 - **Comment Counts**: Per-site comment count lookup from EverythingMoe's thread counters.
-- **100% Mocked Test Coverage**: 38 clean unit/integration/API tests that run offline in milliseconds.
+- **Uptime Monitoring & Uptime History**: Mapped status pings and 30-hour status check history logs.
+- **Guides & Articles List**: Parsed guides, quickstarts, and extension repositories list.
+- **Informational Pages Parsers**: Dynamic HTML parsing of info pages into clean structured headers/contents.
+- **100% Mocked Test Coverage**: 53 clean unit/integration/API tests that run offline in milliseconds.
 
 ---
 
@@ -55,14 +58,14 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 The workspace follows a highly structured, scalable FastAPI layout:
 
 - [.github/workflows/test.yml](file:///E:/NAN/Github/everythingmoe-api/.github/workflows/test.yml) - GitHub Actions CI workflow configuration.
-- [api/main.py](file:///E:/NAN/Github/everythingmoe-api/api/main.py) - FastAPI Application, CORS configuration, and router entrypoint.
-- [api/dependencies.py](file:///E:/NAN/Github/everythingmoe-api/api/dependencies.py) - Client dependency injection container.
-- [models/schemas.py](file:///E:/NAN/Github/everythingmoe-api/models/schemas.py) - Pydantic serialization & validation models.
-- [routers/](file:///E:/NAN/Github/everythingmoe-api/routers) - Folder housing individual API endpoint routers.
-- [utils/client.py](file:///E:/NAN/Github/everythingmoe-api/utils/client.py) - Core scraping client orchestration.
-- [utils/parsers.py](file:///E:/NAN/Github/everythingmoe-api/utils/parsers.py) - BeautifulSoup scraping parser methods.
-- [utils/constants.py](file:///E:/NAN/Github/everythingmoe-api/utils/constants.py) - App constants, headers, and mapping rules.
-- [utils/exceptions.py](file:///E:/NAN/Github/everythingmoe-api/utils/exceptions.py) - Custom scrap/parse exception structures.
+- [app/api/main.py](file:///E:/NAN/Github/everythingmoe-api/app/api/main.py) - FastAPI Application, CORS configuration, and router entrypoint.
+- [app/api/dependencies.py](file:///E:/NAN/Github/everythingmoe-api/app/api/dependencies.py) - Client dependency injection container.
+- [app/models/schemas.py](file:///E:/NAN/Github/everythingmoe-api/app/models/schemas.py) - Pydantic serialization & validation models.
+- [app/routers/](file:///E:/NAN/Github/everythingmoe-api/app/routers) - Folder housing individual API endpoint routers.
+- [app/utils/client.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/client.py) - Core scraping client orchestration.
+- [app/utils/parsers.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/parsers.py) - BeautifulSoup scraping parser methods.
+- [app/utils/constants.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/constants.py) - App constants, headers, and mapping rules.
+- [app/utils/exceptions.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/exceptions.py) - Custom scrap/parse exception structures.
 - [tests/](file:///E:/NAN/Github/everythingmoe-api/tests) - Tests directory featuring client, parser, and router tests.
 - [start.bat](file:///E:/NAN/Github/everythingmoe-api/start.bat) - One-click Windows launch script.
 
@@ -74,11 +77,9 @@ The workspace follows a highly structured, scalable FastAPI layout:
 
 Clone this repository and install the package with dev dependencies (required for testing):
 
-```bash
-git clone https://github.com/yourusername/everythingmoe-api.git
-cd everythingmoe-api
-pip install -e .[dev]
-```
+`git clone https://github.com/yourusername/everythingmoe-api.git`
+`cd everythingmoe-api`
+`pip install -e .[dev]`
 
 ### 2. Running the Server
 
@@ -86,9 +87,7 @@ pip install -e .[dev]
 Simply double-click the **[start.bat](file:///E:/NAN/Github/everythingmoe-api/start.bat)** file.
 
 #### Command Line
-```bash
-uvicorn api.main:app --reload
-```
+`uvicorn app.api.main:app --reload`
 
 The server will spin up on **`http://127.0.0.1:8000`**.
 
@@ -130,6 +129,23 @@ Navigate to:
 ### Graveyard & Logs
 - `GET /graveyard` : List all dead/archived sites.
 - `GET /activity` : Retrieve recent changelogs, review submissions, and comments.
+
+### Uptime Status Checks
+- `GET /detector` : Fetch current live ping and API status maps, alongside 30-hour check status histories.
+- `GET /detector/{site_id}` : Get uptime status stats for a single monitored site.
+
+### Cache Databases (Advanced)
+- `GET /cache/main` : Fetch the parsed `main.json` database containing all active site expands and section arrays.
+- `GET /cache/dead` : Fetch the parsed `dead.json` database containing all dead site expands and dead streaming lists.
+
+### Backend Actions (Proxy Forms)
+- `POST /backend/info` : Proxy client platform telemetry metrics (referrers, platform, resolution, bookmarks count).
+- `POST /backend/api` : Submit site recommendations, edits, or feedback to EverythingMoe backend (Turnstile token required).
+
+### Static Info & Project Descriptions
+- `GET /info` : Retrieve structured parsed text blocks of About, Otaku Culture, Rank Criteria, and Requirements from `/post/info.html`.
+- `GET /kuroiru` : Retrieve structured parsed text blocks of the Kuroiru tracking sub-project from `/post/kuroiru.html`.
+- `GET /articles` : Retrieve dynamic OTAC/ACG guides, quickstarts, and extension repositories listed under `/post/`.
 
 ---
 
@@ -259,7 +275,7 @@ print(f"Comments on anikoto: {cc.comment_count}")
 
 ## Testing
 
-The repository includes a comprehensive test suite (38 unit/integration tests). Run them locally with:
+The repository includes a comprehensive test suite (53 unit/integration tests). Run them locally with:
 
 ```bash
 python -m pytest

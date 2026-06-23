@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.dependencies import get_api_client
-from models.schemas import RecentActivity
-from utils.client import EverythingMoeAPI
+from app.api.dependencies import get_api_client
+from app.models.schemas import RecentActivity
+from app.utils.client import EverythingMoeAPI
 
 router = APIRouter(prefix="/activity", tags=["Activity"])
 

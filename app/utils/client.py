@@ -5,15 +5,15 @@ from typing import Any, Dict, List
 
 import requests
 
-from models.schemas import RecentActivity, SearchResult, SiteDetails, CategoryMenuItem, TagDefinition, SiteStats, StatsHistory, SiteExpand, SiteCommentCount, ChangelogRSS
-from utils.constants import BASE_URL, CATEGORY_TO_LOWSEC, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT
-from utils.exceptions import (
+from app.models.schemas import RecentActivity, SearchResult, SiteDetails, CategoryMenuItem, TagDefinition, SiteStats, StatsHistory, SiteExpand, SiteCommentCount, ChangelogRSS, DetectorStatus, ArticleEntry, DetectorSiteStatus, CacheData, InfoSection
+from app.utils.constants import BASE_URL, CATEGORY_TO_LOWSEC, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT
+from app.utils.exceptions import (
     EverythingMoeError,
     EverythingMoeNetworkError,
     EverythingMoeNotFoundError,
     EverythingMoeParseError,
 )
-from utils.parsers import (
+from app.utils.parsers import (
     parse_activity,
     parse_categories,
     parse_changelog_rss,
@@ -27,6 +27,10 @@ from utils.parsers import (
     parse_stats,
     parse_stats_history,
     parse_tags,
+    parse_detector_status,
+    parse_articles,
+    parse_cache_data,
+    parse_info_page,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -266,3 +270,113 @@ class EverythingMoeAPI:
             raise
         except Exception as exc:
             raise EverythingMoeParseError(f"Failed to fetch changelog: {exc}") from exc
+
+    def get_detector_status(self, include_history: bool = True) -> DetectorStatus:
+        """Fetch live downtime detector status and optional status history."""
+        try:
+            status_resp = self._request("GET", "/data/cache/isdown.json")
+            history_data = None
+            if include_history:
+                try:
+                    history_resp = self._request("GET", "/data/cache/isdown/history.json")
+                    history_data = history_resp.json()
+                except Exception as exc:
+                    logger.warning("Failed to fetch downtime history: %s", exc)
+            return parse_detector_status(status_resp.json(), history_data)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch detector status: {exc}") from exc
+
+    def get_articles(self) -> List[ArticleEntry]:
+        """Fetch all guides, posts, and articles listed on EverythingMoe."""
+        try:
+            resp = self._request("GET", "/post/")
+            return parse_articles(resp.text, self.base_url)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch articles list: {exc}") from exc
+
+    def get_site_detector_status(self, id_or_slug: str) -> DetectorSiteStatus:
+        """Fetch live downtime detector status for a specific site."""
+        try:
+            status = self.get_detector_status(include_history=True)
+            slug_lower = id_or_slug.lower().strip()
+            for site in status.sites:
+                if site.id and site.id.lower().strip() == slug_lower:
+                    return site
+            raise EverythingMoeNotFoundError(f"Monitored site '{id_or_slug}' not found in detector.")
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch detector status for '{id_or_slug}': {exc}") from exc
+
+    def get_cache_main(self) -> CacheData:
+        """Fetch the full main site cache including all active site expands and categories/sections."""
+        try:
+            resp = self._request("GET", "/data/cache/main.json")
+            return parse_cache_data(resp.json(), self.base_url)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch main cache: {exc}") from exc
+
+    def get_cache_dead(self) -> CacheData:
+        """Fetch the full dead site cache including all shutdown site expands and categories/sections."""
+        try:
+            resp = self._request("GET", "/data/cache/dead.json")
+            return parse_cache_data(resp.json(), self.base_url)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch dead cache: {exc}") from exc
+
+    def post_telemetry(self, payload: dict) -> dict:
+        """Log client telemetry or platform metadata by submitting to /backend/info."""
+        try:
+            resp = self._request("POST", "/backend/info", data=payload)
+            try:
+                return resp.json()
+            except ValueError:
+                return {"status": "ok", "message": resp.text}
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeNetworkError(f"Failed to submit telemetry: {exc}") from exc
+
+    def post_suggestion(self, suggest_type: str, suggestion: str, turnstile_token: str) -> dict:
+        """Submit site addition, edit, or report recommendations to /backend/api."""
+        try:
+            payload = {
+                "suggesttype": suggest_type,
+                "suggestion": suggestion,
+                "Ttoken": turnstile_token
+            }
+            resp = self._request("POST", "/backend/api", data=payload)
+            return resp.json()
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeNetworkError(f"Failed to submit suggestion: {exc}") from exc
+
+    def get_info_page(self) -> List[InfoSection]:
+        """Fetch and parse EverythingMoe's About & Info page."""
+        try:
+            resp = self._request("GET", "/post/info.html")
+            return parse_info_page(resp.text)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to parse info page: {exc}") from exc
+
+    def get_kuroiru_page(self) -> List[InfoSection]:
+        """Fetch and parse EverythingMoe's Kuroiru description page."""
+        try:
+            resp = self._request("GET", "/post/kuroiru.html")
+            return parse_info_page(resp.text)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to parse Kuroiru page: {exc}") from exc
+

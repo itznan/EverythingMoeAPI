@@ -45,7 +45,7 @@ Repository = "https://github.com/itznan/EverythingMoeAPI"
 Issues = "https://github.com/itznan/EverythingMoeAPI/issues"
 
 [tool.setuptools.packages.find]
-include = ["api*", "models*", "routers*", "utils*"]
+include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

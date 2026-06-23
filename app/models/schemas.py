@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Dict, Optional, Any
 from datetime import date as DateType
 
@@ -149,3 +149,84 @@ class ChangelogRSSItem(BaseModel):
 class ChangelogRSS(BaseModel):
     """The full changelog RSS feed."""
     items: List[ChangelogRSSItem] = Field(default_factory=list)
+
+
+class DetectorSiteStatus(BaseModel):
+    """Status details for a single monitored site in the downtime checker."""
+    id: Optional[str] = None
+    url: str
+    keyword: str
+    ping: bool
+    is_api: bool = False
+    status: str
+    response_ms: Optional[int] = None
+    down_since: Optional[int] = None
+    history: List[str] = Field(default_factory=list)
+
+
+class DetectorStatus(BaseModel):
+    """Aggregate stats and site listing for the downtime detector."""
+    last_cron_start_at: int
+    last_cron_at: int
+    last_cron_ms: int
+    sites: List[DetectorSiteStatus] = Field(default_factory=list)
+
+
+class ArticleEntry(BaseModel):
+    """An article, post, or guide published on EverythingMoe."""
+    title: str
+    url: str
+    date: str
+    icons: List[str] = Field(default_factory=list)
+
+
+class CacheSectionEntry(BaseModel):
+    """An entry in a section list inside main.json or dead.json."""
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: Optional[str] = None
+    tempid: Optional[str] = None
+    title: Optional[str] = None
+    faketitle: Optional[str] = None
+    link: Optional[str] = None
+    icon: Optional[str] = None
+    tags: Optional[str] = None
+    ex_tags: Optional[str] = Field(default=None, alias="ex-tags")
+    hiddentags: Optional[str] = None
+    filter: Optional[str] = None
+    reviewinfo: Optional[str] = None
+    reviewnotice: Optional[str] = None
+    DEAD: Optional[Any] = None  # can be str or bool
+    ex_DEAD: Optional[str] = Field(default=None, alias="ex-DEAD")
+
+
+class CacheData(BaseModel):
+    """The parsed data structure of main.json or dead.json cache databases."""
+    sites: Dict[str, SiteExpand]
+    sections: Dict[str, List[CacheSectionEntry]]
+
+
+class InfoSection(BaseModel):
+    """A structured text section parsed from static HTML pages (e.g. info.html, kuroiru.html)."""
+    title: str
+    content: List[str] = Field(default_factory=list)
+
+
+class TelemetryPayload(BaseModel):
+    """Payload fields for logging client telemetry / usage statistics."""
+    ref: Optional[str] = None
+    screen: Optional[str] = None
+    ispwa: Optional[str] = None
+    bookmark: Optional[str] = None
+    platform: Optional[str] = None
+    out: Optional[str] = None
+    pageType: Optional[str] = None
+
+
+class SuggestionPayload(BaseModel):
+    """Payload for submitting a suggestion or contribution report."""
+    suggesttype: str
+    suggestion: str
+    Ttoken: str
+
+

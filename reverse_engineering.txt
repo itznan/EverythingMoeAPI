@@ -1,0 +1,100 @@
+================================================================================
+EverythingMoe.com - Complete Reverse Engineering Mapping & Guide
+================================================================================
+
+This document indexes all frontend pages, script files, layout architectures, assets,
+JSON cache databases, RSS channels, and server forms discovered on everythingmoe.com,
+including parameters, schemas, and endpoints.
+
+--------------------------------------------------------------------------------
+1. Main Site Page Index
+--------------------------------------------------------------------------------
+- /                          ➔ Main landing index containing the directory categories
+- /graveyard                 ➔ Dead, archived, and shutdown site tracking log
+- /activity.html             ➔ System logs, review streams, and user comment tickers
+- /monitor                   ➔ Live uptime and downtime status dashboard
+- /post/                     ➔ Lists OTAC/ACG guides, mihon quickstarts, extension repos
+- /post/info.html            ➔ About page, rankings criteria, requirements, and disclaimer notices
+- /post/kuroiru.html         ➔ Description page for EverythingMoe's Kuroiru tracking sub-project
+- /contribute                ➔ Form panel for site submissions, warnings, and corrections
+
+--------------------------------------------------------------------------------
+2. Scripting & Asset Files
+--------------------------------------------------------------------------------
+- /static/index.min.js       ➔ Core browser code: manages bookmarks, search, NSFW blur cookies, overlays, and outbound tracking.
+- /static/menu.min.js        ➔ Layout slider script: populates sidebar categories and routes links.
+- /static/isdown.min.js      ➔ Status checker logic: merges cron check timers, pings, and histories.
+- /static/info.min.js        ➔ Static pages handler: routes sidebar interactions for the About page.
+- /static/contribute.min.js  ➔ Suggestion form processor: handles Cloudflare Turnstile token verification and submits forms.
+- /static/manifest.json      ➔ Web app configurations (name, favicons, launch routes).
+- /static/style.min.css      ➔ Global stylesheet bundle.
+- /static/isdown.min.css     ➔ Status monitor styling sheet.
+
+--------------------------------------------------------------------------------
+3. Server APIs & JSON Cache Databases
+--------------------------------------------------------------------------------
+- /data/cache/menu.json      ➔ Mappings for categories IDs, display names, and mature tags.
+- /data/tags.json            ➔ Glossaries explaining tags attributes (e.g. Scan, Soft-sub, Torrent).
+- /data/cache/site-stats.json➔ Aggregate statistics containing user counts, total comments, and review volumes.
+- /data/cache/statshistory/{date}.json ➔ Historical directory snapshots formatted in YYYYMMDD.
+- /data/cache/main.json      ➔ Core details cache holding active site data (pros, cons, alternative links) 
+                               AND section listings under keys starting with 'section' (e.g. sectionanime).
+- /data/cache/dead.json      ➔ Archive details cache holding shutdown site data (reasons, alternate domains)
+                               AND section listings (e.g. sectiondead-streaming).
+- /data/expand/{id}.json     ➔ Details overlay cache: pulls expanded links, expired domains, and pros/cons.
+- /comments/threadcount.json ➔ Thread tracker database matching thread links to comments frequencies.
+- /comments/threadreviewcount.json ➔ Review database mapping custom review pages to help votes.
+- /comments/api?activity=true ➔ Live reviews, logs, and comments dashboard activity stream.
+- /data/cache/isdown.json    ➔ Live downtime status checker statistics (URLs, status, ping times, slugs).
+- /data/cache/isdown/history.json ➔ Historical check log containing check states (30-hour uptime bar states).
+
+--------------------------------------------------------------------------------
+4. RSS Channels & Feeds
+--------------------------------------------------------------------------------
+- https://static.everythingmoe.com/feeds/changelog.xml ➔ Core RSS feed containing timestamps, category tags, and description of directory updates.
+
+--------------------------------------------------------------------------------
+5. POST Forms (Backend Actions)
+--------------------------------------------------------------------------------
+- /backend/search            ➔ Query routing: handles search terms ('q') and section ('section') filters.
+- /backend/info              ➔ Telemetry tracking: captures client platform metadata.
+  * Parameters (Form URL-Encoded):
+    - `ref`: URL/referrer
+    - `screen`: Screen resolution (e.g. "1920x1080")
+    - `ispwa`: "true" or "false" indicating progressive web app launch
+    - `bookmark`: Number of bookmarked items
+    - `platform`: OS platform (e.g. "Win32")
+    - `out`: Outbound link target
+    - `pageType`: Current page context (e.g. "idx", "page")
+- /backend/api               ➔ Contribution submissions: suggestions, corrections, and reports.
+  * Parameters (Form URL-Encoded):
+    - `suggesttype`: The category ('add', 'edit', 'remove', 'info', 'general', 'inquiry')
+    - `suggestion`: Message contents (prefixed with target domain/URL where applicable)
+    - `Ttoken`: Cloudflare Turnstile verification token (fails with status 400 if validation fails)
+
+--------------------------------------------------------------------------------
+6. API Integrations & Mapping Strategy (Python FastAPI)
+--------------------------------------------------------------------------------
+The FastAPI Web Service maps these reverse-engineered components into local JSON endpoints:
+- /categories               ➔ Mapped from category menus HTML definitions.
+- /search                   ➔ Mapped from /backend/search POST actions.
+- /sites/{id}               ➔ Mapped by scraping site detail sub-pages (/s/slug).
+- /sites/{id}/expand        ➔ Mapped from /data/expand/{id}.json cached overlays.
+- /sites/{id}/comments      ➔ Mapped from /comments/threadcount.json count trackers.
+- /graveyard                ➔ Mapped from graveyard HTML pages.
+- /activity                 ➔ Mapped from /comments/api?activity=true feeds.
+- /menu                     ➔ Mapped from /data/cache/menu.json config targets.
+- /tags                     ➔ Mapped from /data/tags.json glossaries.
+- /stats                    ➔ Mapped from /data/cache/site-stats.json files.
+- /stats/history/{date}     ➔ Mapped from /data/cache/statshistory/ date records.
+- /changelog                ➔ Mapped from /feeds/changelog.xml RSS feeds.
+- /detector                 ➔ Mapped from /data/cache/isdown.json & /history.json.
+- /articles                 ➔ Mapped from /post/ HTML list items.
+- /detector/{site_id}       ➔ Monitored check details for a specific site.
+- /cache/main               ➔ Fetches and parses the main.json site expand database + section lists (NEW).
+- /cache/dead               ➔ Fetches and parses the dead.json site expand database + section lists (NEW).
+- /backend/info             ➔ Telemetry endpoint logging / proxying client platform parameters (NEW).
+- /backend/api              ➔ Suggestion form endpoint proxying contribution reports to upstream server (NEW).
+- /info                     ➔ Fetches and parses structured text sections from /post/info.html (NEW).
+- /kuroiru                  ➔ Fetches and parses structured text sections from /post/kuroiru.html (NEW).
+================================================================================

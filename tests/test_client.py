@@ -1,14 +1,14 @@
 import pytest
 from unittest.mock import MagicMock, patch
 import requests
-from utils.client import EverythingMoeAPI
-from utils.exceptions import (
+from app.utils.client import EverythingMoeAPI
+from app.utils.exceptions import (
     EverythingMoeError,
     EverythingMoeNetworkError,
     EverythingMoeNotFoundError,
     EverythingMoeParseError,
 )
-from models.schemas import RecentActivity, SearchResult, SiteDetails
+from app.models.schemas import RecentActivity, SearchResult, SiteDetails
 
 @pytest.fixture
 def api():

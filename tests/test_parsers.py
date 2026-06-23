@@ -1,5 +1,5 @@
 import pytest
-from utils.parsers import (
+from app.utils.parsers import (
     parse_categories,
     parse_section_items,
     parse_lowsec_items,
@@ -8,8 +8,12 @@ from utils.parsers import (
     parse_site_data,
     parse_activity,
     parse_altlinks,
+    parse_detector_status,
+    parse_articles,
+    parse_cache_data,
+    parse_info_page,
 )
-from models.schemas import SearchResult, SiteDetails, Review, Screenshot
+from app.models.schemas import SearchResult, SiteDetails, Review, Screenshot
 
 def test_parse_categories():
     html = """
@@ -213,3 +217,97 @@ def test_parse_activity():
     assert act.changelog[1].message == "something changed"
     assert act.reviews == [{"id": 1}]
     assert act.comments == [{"id": 2}]
+
+
+def test_parse_detector_status():
+    status_data = {
+        "lastCronStartAt": 100,
+        "lastCronAt": 200,
+        "lastCronMs": 300,
+        "sites": [
+            {
+                "url": "http://test.com",
+                "keyword": "Test",
+                "ping": True,
+                "isApi": False,
+                "status": "up",
+                "responseMs": 50,
+                "downSince": None,
+                "id": "TestSite"
+            }
+        ]
+    }
+    history_data = {
+        "history": {
+            "http://test.com": ["up", "up"]
+        }
+    }
+    status = parse_detector_status(status_data, history_data)
+    assert status.last_cron_start_at == 100
+    assert len(status.sites) == 1
+    assert status.sites[0].id == "TestSite"
+    assert status.sites[0].history == ["up", "up"]
+
+
+def test_parse_articles():
+    html = """
+    <a href="/post/test.html"><div class="icons-box"><img src="/icons/test.png"></div>
+    <h3>Test Article</h3></a>
+    <div class="about-gray">23 Jun 2026</div>
+    """
+    articles = parse_articles(html, "http://base.com")
+    assert len(articles) == 1
+    assert articles[0].title == "Test Article"
+    assert articles[0].url == "http://base.com/post/test.html"
+    assert articles[0].date == "23 Jun 2026"
+    assert articles[0].icons == ["http://base.com/icons/test.png"]
+
+
+def test_parse_cache_data():
+    raw_data = {
+        "anikoto": {
+            "positive": "Good pros#Excellent subtitles",
+            "negative": "Ads",
+            "info": "Some info notes",
+            "altlink": "mirror<<https://anikoto.com"
+        },
+        "sectionanime": [
+            {
+                "id": "animepahe",
+                "title": "AnimePahe",
+                "link": "https://animepahe.com",
+                "icon": "https://static.com/icon.png",
+                "DEAD": False
+            }
+        ]
+    }
+    cache = parse_cache_data(raw_data, "https://everythingmoe.com")
+    assert len(cache.sites) == 1
+    assert "anikoto" in cache.sites
+    assert cache.sites["anikoto"].positive_reviews == ["Good pros", "Excellent subtitles"]
+    assert len(cache.sections) == 1
+    assert "sectionanime" in cache.sections
+    assert cache.sections["sectionanime"][0].title == "AnimePahe"
+    assert cache.sections["sectionanime"][0].DEAD is False
+
+
+def test_parse_info_page():
+    html = """
+    <div id="about-base">
+        <h2>Section Title 1</h2>
+        Paragraph text description.
+        <ul>
+            <li>List item 1</li>
+            <li>List item 2</li>
+        </ul>
+        <a href="http://link.com">Click here</a>
+    </div>
+    """
+    sections = parse_info_page(html)
+    assert len(sections) == 1
+    assert sections[0].title == "Section Title 1"
+    assert "Paragraph text description." in sections[0].content
+    assert "List item 1" in sections[0].content
+    assert "Click here (http://link.com)" in sections[0].content
+
+

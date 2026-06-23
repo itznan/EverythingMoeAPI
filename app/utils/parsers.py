@@ -5,9 +5,9 @@ import logging
 import re
 from typing import Dict, List, Optional, Tuple
 
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup, Tag, NavigableString
 
-from models.schemas import (
+from app.models.schemas import (
     ChangelogEntry,
     ChangelogRSS,
     ChangelogRSSItem,
@@ -21,6 +21,12 @@ from models.schemas import (
     SiteStats,
     StatsHistory,
     TagDefinition,
+    DetectorSiteStatus,
+    DetectorStatus,
+    ArticleEntry,
+    CacheSectionEntry,
+    CacheData,
+    InfoSection,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -385,3 +391,140 @@ def parse_changelog_rss(xml_content: str) -> ChangelogRSS:
             ))
     
     return ChangelogRSS(items=items)
+
+
+def parse_detector_status(status_data: dict, history_data: dict = None) -> DetectorStatus:
+    """Convert uptime checker status JSON and optional history data into DetectorStatus."""
+    sites = []
+    history_map = history_data.get("history", {}) if history_data else {}
+    for item in status_data.get("sites", []):
+        url = item.get("url", "")
+        sites.append(DetectorSiteStatus(
+            id=item.get("id"),
+            url=url,
+            keyword=item.get("keyword", ""),
+            ping=bool(item.get("ping", False)),
+            is_api=bool(item.get("isApi", False)),
+            status=item.get("status", "up"),
+            response_ms=item.get("responseMs"),
+            down_since=item.get("downSince"),
+            history=history_map.get(url, [])
+        ))
+    return DetectorStatus(
+        last_cron_start_at=status_data.get("lastCronStartAt", 0),
+        last_cron_at=status_data.get("lastCronAt", 0),
+        last_cron_ms=status_data.get("lastCronMs", 0),
+        sites=sites
+    )
+
+
+def parse_articles(html_content: str, base_url: str = "") -> List[ArticleEntry]:
+    """Parse EverythingMoe articles page HTML list into ArticleEntry objects."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    articles = []
+    
+    for a_tag in soup.find_all("a"):
+        h3_tag = a_tag.find("h3")
+        if not h3_tag:
+            continue
+        
+        href = a_tag.get("href", "")
+        if href.startswith("/"):
+            url = base_url.rstrip("/") + href
+        else:
+            url = href
+            
+        title = h3_tag.text.strip()
+        
+        # Extract icons inside .icons-box img tags
+        icons = []
+        icons_box = a_tag.find(class_="icons-box")
+        if icons_box:
+            for img in icons_box.find_all("img"):
+                img_src = img.get("src", "")
+                if img_src:
+                    if img_src.startswith("/"):
+                        icons.append(base_url.rstrip("/") + img_src)
+                    else:
+                        icons.append(img_src)
+        
+        # Extract the date from adjacent div.about-gray sibling
+        date_str = ""
+        sibling = a_tag.next_sibling
+        while sibling:
+            if getattr(sibling, "name", None) == "div":
+                classes = sibling.get("class", [])
+                if classes and "about-gray" in classes:
+                    date_str = sibling.text.strip()
+                    break
+            sibling = sibling.next_sibling
+        
+        articles.append(ArticleEntry(
+            title=title,
+            url=url,
+            date=date_str,
+            icons=icons
+        ))
+    return articles
+
+
+def parse_cache_data(data: dict, base_url: str = "") -> CacheData:
+    """Convert raw cache database (main.json/dead.json) into structured CacheData."""
+    sites = {}
+    sections = {}
+    for k, v in data.items():
+        if isinstance(v, dict):
+            sites[k] = parse_expand(v, base_url)
+        elif isinstance(v, list):
+            sections[k] = [CacheSectionEntry(**item) for item in v]
+    return CacheData(sites=sites, sections=sections)
+
+
+def parse_info_page(html_content: str) -> List[InfoSection]:
+    """Parse EverythingMoe's informational pages (info.html, kuroiru.html) into structured InfoSection list."""
+    soup = BeautifulSoup(html_content, "html.parser")
+    base = soup.find(id="about-base")
+    if not base:
+        base = soup.find("body") or soup
+
+    sections: List[InfoSection] = []
+    h2_tags = base.find_all("h2")
+
+    for h2 in h2_tags:
+        title = h2.text.strip()
+        content_items = []
+
+        sib = h2.next_sibling
+        while sib and getattr(sib, "name", None) != "h2":
+            if isinstance(sib, NavigableString):
+                text = str(sib).strip()
+                if text:
+                    content_items.append(text)
+            elif getattr(sib, "name", None) in ["p", "div", "ul", "ol"]:
+                if sib.name in ["ul", "ol"]:
+                    for li in sib.find_all("li"):
+                        li_text = li.text.strip()
+                        if li_text:
+                            content_items.append(li_text)
+                else:
+                    text = sib.text.strip()
+                    if text:
+                        content_items.append(text)
+            elif getattr(sib, "name", None) == "a":
+                text = sib.text.strip()
+                href = sib.get("href", "")
+                if text:
+                    content_items.append(f"{text} ({href})")
+            sib = sib.next_sibling
+
+        clean_content = []
+        for item in content_items:
+            item_clean = item.strip()
+            if item_clean and item_clean not in clean_content:
+                clean_content.append(item_clean)
+
+        sections.append(InfoSection(title=title, content=clean_content))
+
+    return sections
+
+

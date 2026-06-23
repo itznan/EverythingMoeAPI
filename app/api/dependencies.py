@@ -1,4 +1,4 @@
-from utils.client import EverythingMoeAPI
+from app.utils.client import EverythingMoeAPI
 
 _api_client = EverythingMoeAPI()
 

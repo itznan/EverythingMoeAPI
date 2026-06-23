@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 
-from api.dependencies import get_api_client
-from models.schemas import TagDefinition
-from utils.client import EverythingMoeAPI
+from app.api.dependencies import get_api_client
+from app.models.schemas import TagDefinition
+from app.utils.client import EverythingMoeAPI
 
 router = APIRouter(prefix="/tags", tags=["Tags"])
 

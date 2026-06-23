@@ -2,10 +2,10 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from typing import Optional
 import re
 
-from api.dependencies import get_api_client
-from models.schemas import SiteStats, StatsHistory
-from utils.client import EverythingMoeAPI
-from utils.exceptions import EverythingMoeNotFoundError
+from app.api.dependencies import get_api_client
+from app.models.schemas import SiteStats, StatsHistory
+from app.utils.client import EverythingMoeAPI
+from app.utils.exceptions import EverythingMoeNotFoundError
 
 router = APIRouter(prefix="/stats", tags=["Stats"])
 

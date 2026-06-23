@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 
-from api.dependencies import get_api_client
-from models.schemas import SiteDetails, SiteExpand, SiteCommentCount
-from utils.client import EverythingMoeAPI
-from utils.exceptions import EverythingMoeNotFoundError
+from app.api.dependencies import get_api_client
+from app.models.schemas import SiteDetails, SiteExpand, SiteCommentCount
+from app.utils.client import EverythingMoeAPI
+from app.utils.exceptions import EverythingMoeNotFoundError
 
 router = APIRouter(prefix="/sites", tags=["Sites"])
 
