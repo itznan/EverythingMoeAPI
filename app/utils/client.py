@@ -1,11 +1,30 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
-import requests
+import httpx
 
-from app.models.schemas import RecentActivity, SearchResult, SiteDetails, CategoryMenuItem, TagDefinition, SiteStats, StatsHistory, SiteExpand, SiteCommentCount, ChangelogRSS, DetectorStatus, ArticleEntry, DetectorSiteStatus, CacheData, InfoSection
+from app.models.schemas import (
+    RecentActivity,
+    SearchResult,
+    SiteDetails,
+    CategoryMenuItem,
+    TagDefinition,
+    SiteStats,
+    StatsHistory,
+    SiteExpand,
+    SiteCommentCount,
+    ChangelogRSS,
+    DetectorStatus,
+    ArticleEntry,
+    DetectorSiteStatus,
+    CacheData,
+    InfoSection,
+    ThreadComment,
+    ThreadDetails,
+    FullChangelogEntry,
+)
 from app.utils.constants import BASE_URL, CATEGORY_TO_LOWSEC, DEFAULT_TIMEOUT, DEFAULT_USER_AGENT
 from app.utils.exceptions import (
     EverythingMoeError,
@@ -31,6 +50,9 @@ from app.utils.parsers import (
     parse_articles,
     parse_cache_data,
     parse_info_page,
+    parse_thread_comments,
+    parse_full_changelog,
+    parse_simple_directory,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -44,33 +66,56 @@ class EverythingMoeAPI:
         base_url: str = BASE_URL,
         timeout: float = DEFAULT_TIMEOUT,
         include_nsfw: bool = True,
+        client: Optional[httpx.Client] = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
 
-        self.session = requests.Session()
-        self.session.headers.update({
+        headers = {
             "User-Agent": DEFAULT_USER_AGENT,
             "Referer": self.base_url,
-        })
+        }
         if include_nsfw:
-            self.session.headers["Cookie"] = "nsfw=true"
+            headers["Cookie"] = "nsfw=true"
 
-    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+        self.client = client or httpx.Client(
+            headers=headers,
+            timeout=httpx.Timeout(self.timeout),
+            follow_redirects=True,
+        )
+
+    def close(self) -> None:
+        """Close the underlying HTTP client."""
+        self.client.close()
+
+    def __enter__(self) -> EverythingMoeAPI:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        self.close()
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
         """Send an HTTP request and handle common error cases."""
-        url = f"{self.base_url}/{path.lstrip('/')}"
+        if path.startswith("http://") or path.startswith("https://"):
+            url = path
+        else:
+            url = f"{self.base_url}/{path.lstrip('/')}"
         try:
-            resp = self.session.request(method, url, timeout=self.timeout, **kwargs)
+            resp = self.client.request(method, url, **kwargs)
             if resp.status_code == 404:
                 raise EverythingMoeNotFoundError(f"Endpoint not found: {url}")
             resp.raise_for_status()
             return resp
-        except requests.exceptions.HTTPError as exc:
+        except httpx.HTTPStatusError as exc:
             if exc.response is not None and exc.response.status_code == 404:
                 raise EverythingMoeNotFoundError(f"Endpoint not found: {url}") from exc
-            raise EverythingMoeNetworkError(f"HTTP error: {exc}") from exc
-        except requests.exceptions.RequestException as exc:
+            raise EverythingMoeNetworkError(f"HTTP error {exc.response.status_code}: {exc}") from exc
+        except httpx.RequestError as exc:
             raise EverythingMoeNetworkError(f"Network request failed: {exc}") from exc
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeNetworkError(f"Request failed: {exc}") from exc
 
     def get_categories(self) -> Dict[str, str]:
         """Fetch all available categories from the homepage dropdown."""
@@ -263,8 +308,7 @@ class EverythingMoeAPI:
         """Fetch the full changelog from the RSS feed."""
         try:
             url = "https://static.everythingmoe.com/feeds/changelog.xml"
-            resp = self.session.get(url, timeout=self.timeout)
-            resp.raise_for_status()
+            resp = self._request("GET", url)
             return parse_changelog_rss(resp.text)
         except EverythingMoeError:
             raise
@@ -379,4 +423,59 @@ class EverythingMoeAPI:
             raise
         except Exception as exc:
             raise EverythingMoeParseError(f"Failed to parse Kuroiru page: {exc}") from exc
+
+    def get_thread_comments(self, thread_path: str) -> ThreadDetails:
+        """Fetch full discussion thread comments and replies for any thread or site page."""
+        try:
+            clean = thread_path.strip("/").lower().replace("/", "-").replace(".", "-")
+            url = f"/comments/cache/{clean}.json"
+            resp = self._request("GET", url)
+            return parse_thread_comments(resp.json(), self.base_url)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch thread comments for '{thread_path}': {exc}") from exc
+
+    def get_site_thread(self, id_or_slug: str) -> ThreadDetails:
+        """Fetch full user comments and discussion thread for a specific site."""
+        return self.get_thread_comments(f"s/{id_or_slug}")
+
+    def get_full_changelog(self, action: Optional[str] = None, limit: Optional[int] = None) -> List[FullChangelogEntry]:
+        """Fetch the entire historical changelog database (2,500+ entries) from /data/changelog/changelog.txt."""
+        try:
+            resp = self._request("GET", "/data/changelog/changelog.txt")
+            entries = parse_full_changelog(resp.text)
+            if action:
+                action_lower = action.lower().strip()
+                entries = [e for e in entries if e.action_type.lower() == action_lower]
+            # Most recent first
+            entries = list(reversed(entries))
+            if limit and limit > 0:
+                entries = entries[:limit]
+            return entries
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch full changelog: {exc}") from exc
+
+    def get_rules_page(self) -> List[InfoSection]:
+        """Fetch and parse EverythingMoe's Community Guidelines & Rules page."""
+        try:
+            resp = self._request("GET", "/post/rules.html")
+            return parse_info_page(resp.text)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to parse rules page: {exc}") from exc
+
+    def get_simple_directory(self) -> Dict[str, List[SearchResult]]:
+        """Fetch and parse the lightweight full directory at /simple in a single request."""
+        try:
+            resp = self._request("GET", "/simple")
+            return parse_simple_directory(resp.text)
+        except EverythingMoeError:
+            raise
+        except Exception as exc:
+            raise EverythingMoeParseError(f"Failed to fetch simple directory: {exc}") from exc
+
 

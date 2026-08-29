@@ -1,13 +1,14 @@
 # EverythingMoe API & Web Service
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![HTTPX](https://img.shields.io/badge/HTTPX-0.28-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python-httpx.org)
 [![Python Version](https://img.shields.io/badge/Python-3.9%20%7C%203.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
-[![Tests Status](https://img.shields.io/badge/Tests-53%20Passed-success?style=for-the-badge&logo=pytest)](https://pytest.org)
+[![Tests Status](https://img.shields.io/badge/Tests-88%20Passed-success?style=for-the-badge&logo=pytest)](https://pytest.org)
 
 An unofficial, robust **Python scraper client wrapper** and **FastAPI Web Service** that exposes clean JSON API endpoints for [everythingmoe.com](https://everythingmoe.com/). 
 
-Easily query categories, search items, filter tags/genres, track graveyard dead sites, monitor site statistics and changelog activity, lookup lightweight expand data, submit user contributions, verify live uptime status maps, list guides/articles, and retrieve parsed static description layouts.
+Easily query categories, search items, filter tags/genres, track graveyard dead sites, monitor site statistics and changelog activity, lookup lightweight expand data, submit user contributions, verify live uptime status maps, list guides/articles, retrieve full discussion threads with user comments, query 2,500+ historical changelogs, and retrieve parsed static description layouts.
 
 > [!NOTE]
 > This project is designed as a standalone, deployable web service. It translates server-side rendered website contents and dynamic pagination endpoints into clean, validated JSON schemas.
@@ -21,10 +22,10 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 | Use Case | How |
 |---|---|
 | **Anime / Manga Site Aggregator** | Pull ranked listings across 26+ categories (streaming, manga, novel, donghua, music, etc.) and display them in your own frontend or mobile app. |
-| **Discord / Telegram Bot** | Let users search for sites, browse categories, or check if a site is dead — all via bot commands backed by the `/search`, `/categories`, and `/graveyard` endpoints. |
-| **Site Health Monitor** | Poll the `/graveyard` and `/activity` endpoints on a schedule to detect when a popular site goes down or comes back, and send alerts. |
+| **Discord / Telegram Bot** | Let users search for sites, browse categories, read discussion comments, or check if a site is dead — all via bot commands backed by the `/search`, `/categories`, `/sites/{id}/thread`, and `/graveyard` endpoints. |
+| **Site Health Monitor** | Poll the `/graveyard`, `/detector`, and `/changelog/full` endpoints on a schedule to detect when a popular site goes down, changes domain, or comes back, and send alerts. |
 | **Recommendation / Discovery Engine** | Use tag-based filtering (`tag:Torrent`, `tag:Dub`, etc.) and genre endpoints to build a personalised recommendation feed. |
-| **Research & Analytics Dashboard** | Aggregate category sizes, review sentiments, dead-site trends, and changelog frequency into charts and reports. |
+| **Research & Analytics Dashboard** | Aggregate category sizes, review sentiments, dead-site trends, 2,500+ changelogs, and time-series statistics into charts and reports. |
 | **Mirror / Proxy Finder** | Query `/sites/{slug}` to programmatically retrieve a site's alternative/mirror links, screenshots, and community reviews. |
 | **NSFW Content Filter Testing** | Toggle the `nsfw` parameter to compare filtered vs. unfiltered results for content-moderation research. |
 | **Automated Testing & CI Pipelines** | Integrate the Python library (`EverythingMoeAPI` class) into test harnesses that verify third-party site availability. |
@@ -36,11 +37,15 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 
 ## Features
 
+- **Next-Gen HTTP Client**: Built on **HTTPX** for fast HTTP/1.1 & HTTP/2 requests, connection pooling, and context manager support.
+- **Blazing Fast HTML Parsing**: Powered by **lxml** C-engine integration with BeautifulSoup4 for ultra-low latency HTML extraction.
 - **Asynchronous Web Server**: Powered by **FastAPI** & **Uvicorn** for high-concurrency performance.
 - **Pydantic V2 Validation**: All request and response structures are validated with robust, strict Pydantic models.
 - **Universal Search**: Supports general text search as well as tag-based filtering (e.g. `tag:Torrent`).
 - **NSFW Bypass**: Built-in toggle to bypass NSFW filtering (`nsfw=true` cookie integration).
 - **Deep Category Extraction**: Extracts both high-ranked items (server-side rendered) and low-ranked items (from dynamic lowsec JSON endpoints).
+- **Full Discussion Threads**: Direct access to all user comments, threaded replies, avatars, and upvotes via `/sites/{id}/thread`.
+- **Complete Historical Changelog**: Query all 2,500+ site update records from inception to present via `/changelog/full`.
 - **Graveyard & Activity Monitors**: Built-in routes to extract dead sites with downing reasons and activity updates.
 - **Menu & Tag Definitions**: Structured category navigation menu and full tag/filter glossary endpoints.
 - **Site Statistics**: Current and historical aggregate stats (entries, users, comments, reviews).
@@ -48,8 +53,8 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 - **Comment Counts**: Per-site comment count lookup from EverythingMoe's thread counters.
 - **Uptime Monitoring & Uptime History**: Mapped status pings and 30-hour status check history logs.
 - **Guides & Articles List**: Parsed guides, quickstarts, and extension repositories list.
-- **Informational Pages Parsers**: Dynamic HTML parsing of info pages into clean structured headers/contents.
-- **100% Mocked Test Coverage**: 53 clean unit/integration/API tests that run offline in milliseconds.
+- **Community Guidelines & Rules**: Parsed official community rules and review standards via `/rules`.
+- **100% Mocked Test Coverage**: 88 unit/integration/API tests running offline in ~1.5 seconds.
 
 ---
 
@@ -57,17 +62,18 @@ This API turns the community-curated [EverythingMoe](https://everythingmoe.com/)
 
 The workspace follows a highly structured, scalable FastAPI layout:
 
-- [.github/workflows/test.yml](file:///E:/NAN/Github/everythingmoe-api/.github/workflows/test.yml) - GitHub Actions CI workflow configuration.
-- [app/api/main.py](file:///E:/NAN/Github/everythingmoe-api/app/api/main.py) - FastAPI Application, CORS configuration, and router entrypoint.
-- [app/api/dependencies.py](file:///E:/NAN/Github/everythingmoe-api/app/api/dependencies.py) - Client dependency injection container.
-- [app/models/schemas.py](file:///E:/NAN/Github/everythingmoe-api/app/models/schemas.py) - Pydantic serialization & validation models.
-- [app/routers/](file:///E:/NAN/Github/everythingmoe-api/app/routers) - Folder housing individual API endpoint routers.
-- [app/utils/client.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/client.py) - Core scraping client orchestration.
-- [app/utils/parsers.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/parsers.py) - BeautifulSoup scraping parser methods.
-- [app/utils/constants.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/constants.py) - App constants, headers, and mapping rules.
-- [app/utils/exceptions.py](file:///E:/NAN/Github/everythingmoe-api/app/utils/exceptions.py) - Custom scrap/parse exception structures.
-- [tests/](file:///E:/NAN/Github/everythingmoe-api/tests) - Tests directory featuring client, parser, and router tests.
-- [start.bat](file:///E:/NAN/Github/everythingmoe-api/start.bat) - One-click Windows launch script.
+- [.github/workflows/test.yml](file:///E:/NAN/Github/EverythingMoeAPI/.github/workflows/test.yml) - GitHub Actions CI workflow configuration.
+- [app/api/main.py](file:///E:/NAN/Github/EverythingMoeAPI/app/api/main.py) - FastAPI Application, CORS configuration, and router entrypoint.
+- [app/api/dependencies.py](file:///E:/NAN/Github/EverythingMoeAPI/app/api/dependencies.py) - Client dependency injection container.
+- [app/models/schemas.py](file:///E:/NAN/Github/EverythingMoeAPI/app/models/schemas.py) - Pydantic serialization & validation models.
+- [app/routers/](file:///E:/NAN/Github/EverythingMoeAPI/app/routers) - Folder housing individual API endpoint routers.
+- [app/utils/client.py](file:///E:/NAN/Github/EverythingMoeAPI/app/utils/client.py) - Core scraping client orchestration.
+- [app/utils/parsers.py](file:///E:/NAN/Github/EverythingMoeAPI/app/utils/parsers.py) - BeautifulSoup scraping parser methods.
+- [app/utils/constants.py](file:///E:/NAN/Github/EverythingMoeAPI/app/utils/constants.py) - App constants, headers, and mapping rules.
+- [app/utils/exceptions.py](file:///E:/NAN/Github/EverythingMoeAPI/app/utils/exceptions.py) - Custom scraper/parser exception classes.
+- [docs/](file:///E:/NAN/Github/EverythingMoeAPI/docs) - Documentation and reverse engineering mappings.
+- [tests/](file:///E:/NAN/Github/EverythingMoeAPI/tests) - Tests directory featuring client, parser, and router tests.
+- [start.bat](file:///E:/NAN/Github/EverythingMoeAPI/start.bat) - One-click Windows launch script.
 
 ---
 
@@ -84,7 +90,7 @@ Clone this repository and install the package with dev dependencies (required fo
 ### 2. Running the Server
 
 #### Windows (One-Click)
-Simply double-click the **[start.bat](file:///E:/NAN/Github/everythingmoe-api/start.bat)** file.
+Simply double-click the **[start.bat](file:///E:/NAN/Github/EverythingMoeAPI/start.bat)** file.
 
 #### Command Line
 `uvicorn app.api.main:app --reload`
@@ -98,29 +104,24 @@ Navigate to:
 
 ---
 
-## REST API Documentation
+## Key Endpoints Overview
 
-### System
-- `GET /health` : Check service status.
-
-### Categories
-- `GET /categories` : Get ID-to-label mapping for all 26 categories.
-- `GET /categories/{category}/items` : Fetch all listings in a category (e.g. `streaming`, `manga`, `novel`, `game`, `western`, `gacha`, `quiz`).
-
-### Search & Genres
-- `GET /search?q={query}&category={category}` : Search items. Filter tags by prefixing query with `tag:` (e.g. `/search?q=tag:Torrent`).
-- `GET /genres/{genre}` : Filter items by tag name or redirect directly to category if name matches.
-
-### Menu & Navigation
-- `GET /menu` : Fetch the site's full category navigation menu with display names, accent colors, and NSFW flags.
+### Categories & Discovery
+- `GET /categories` : List all available media categories.
+- `GET /categories/{category}/items` : Get all active sites in a category (high-ranked + low-ranked).
+- `GET /categories/simple/all` : Get the complete lightweight directory containing all 780+ sites across all categories in a single call.
+- `GET /menu` : Category menu tree with colors, short names, and NSFW flags.
+- `GET /search?q={query}` : Full-text search or prefix with `tag:` (e.g. `/search?q=tag:Torrent`).
+- `GET /genres/{genre}` : Search by genre or retrieve category items.
 
 ### Tag Definitions
 - `GET /tags` : Fetch all tag/filter definitions with descriptions (e.g. what `nsfw`, `hia`, `scan`, `mtl`, `ddl` mean).
 
-### Details & Metadata
+### Details, Discussions & Metadata
 - `GET /sites/{id_or_slug}` : Get full metadata, editorial pros/cons, community reviews, and screenshot links (scrapes the full page).
 - `GET /sites/{id_or_slug}/expand` : **Lightweight** — fetch only pros/cons/info/alt-links from `/data/expand/{id}.json` (works for active **and** dead sites, much faster).
 - `GET /sites/{id_or_slug}/comments` : Get the comment count for a specific site's page.
+- `GET /sites/{id_or_slug}/thread` : **Full Thread** — fetch complete user comments, threaded replies, avatar URLs, upvotes, and timestamps.
 
 ### Statistics
 - `GET /stats` : Get the latest aggregate directory statistics (entries, users, comments, reviews, timestamp).
@@ -129,6 +130,8 @@ Navigate to:
 ### Graveyard & Logs
 - `GET /graveyard` : List all dead/archived sites.
 - `GET /activity` : Retrieve recent changelogs, review submissions, and comments.
+- `GET /changelog` : Recent changelog RSS feed.
+- `GET /changelog/full` : Complete historical changelog database (2,500+ update records) with optional `action` and `limit` filters.
 
 ### Uptime Status Checks
 - `GET /detector` : Fetch current live ping and API status maps, alongside 30-hour check status histories.
@@ -145,7 +148,9 @@ Navigate to:
 ### Static Info & Project Descriptions
 - `GET /info` : Retrieve structured parsed text blocks of About, Otaku Culture, Rank Criteria, and Requirements from `/post/info.html`.
 - `GET /kuroiru` : Retrieve structured parsed text blocks of the Kuroiru tracking sub-project from `/post/kuroiru.html`.
+- `GET /rules` : Retrieve structured Community Guidelines and commenting/review policies from `/post/rules.html`.
 - `GET /articles` : Retrieve dynamic OTAC/ACG guides, quickstarts, and extension repositories listed under `/post/`.
+
 
 ---
 

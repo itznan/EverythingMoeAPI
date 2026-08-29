@@ -10,12 +10,15 @@ including parameters, schemas, and endpoints.
 1. Main Site Page Index
 --------------------------------------------------------------------------------
 - /                          ➔ Main landing index containing the directory categories
+- /simple                    ➔ All-in-one lightweight / no-JS directory view of all categories & 780+ sites
 - /graveyard                 ➔ Dead, archived, and shutdown site tracking log
 - /activity.html             ➔ System logs, review streams, and user comment tickers
+- /changelog.html            ➔ Dedicated changelog frontend page
 - /monitor                   ➔ Live uptime and downtime status dashboard
 - /post/                     ➔ Lists OTAC/ACG guides, mihon quickstarts, extension repos
 - /post/info.html            ➔ About page, rankings criteria, requirements, and disclaimer notices
 - /post/kuroiru.html         ➔ Description page for EverythingMoe's Kuroiru tracking sub-project
+- /post/rules.html           ➔ Community Guidelines, review policies, and commenting rules
 - /contribute                ➔ Form panel for site submissions, warnings, and corrections
 
 --------------------------------------------------------------------------------
@@ -25,7 +28,11 @@ including parameters, schemas, and endpoints.
 - /static/menu.min.js        ➔ Layout slider script: populates sidebar categories and routes links.
 - /static/isdown.min.js      ➔ Status checker logic: merges cron check timers, pings, and histories.
 - /static/info.min.js        ➔ Static pages handler: routes sidebar interactions for the About page.
+- /static/changelog.min.js   ➔ Changelog fetcher script: loads /data/changelog/changelog.txt.
+- /static/activity.min.js    ➔ Activity stream handler: loads /comments/api?activity=true and renders ticker.
+- /static/site.min.js        ➔ Individual site page handler: renders reviews, overlay tabs, and comment button.
 - /static/contribute.min.js  ➔ Suggestion form processor: handles Cloudflare Turnstile token verification and submits forms.
+- /comments/static/comments.min.js ➔ Client comment engine: fetches cached thread comments (/comments/cache/s-{slug}.json) and handles post/reply actions.
 - /static/manifest.json      ➔ Web app configurations (name, favicons, launch routes).
 - /static/style.min.css      ➔ Global stylesheet bundle.
 - /static/isdown.min.css     ➔ Status monitor styling sheet.
@@ -42,8 +49,10 @@ including parameters, schemas, and endpoints.
 - /data/cache/dead.json      ➔ Archive details cache holding shutdown site data (reasons, alternate domains)
                                AND section listings (e.g. sectiondead-streaming).
 - /data/expand/{id}.json     ➔ Details overlay cache: pulls expanded links, expired domains, and pros/cons.
+- /data/changelog/changelog.txt ➔ Complete historical changelog database (2,500+ lines in '{timestamp}#{message}' format).
 - /comments/threadcount.json ➔ Thread tracker database matching thread links to comments frequencies.
 - /comments/threadreviewcount.json ➔ Review database mapping custom review pages to help votes.
+- /comments/cache/{clean_thread}.json ➔ Full comment thread database for a specific site or page (e.g. /comments/cache/s-anikoto.json).
 - /comments/api?activity=true ➔ Live reviews, logs, and comments dashboard activity stream.
 - /data/cache/isdown.json    ➔ Live downtime status checker statistics (URLs, status, ping times, slugs).
 - /data/cache/isdown/history.json ➔ Historical check log containing check states (30-hour uptime bar states).
@@ -71,16 +80,22 @@ including parameters, schemas, and endpoints.
     - `suggesttype`: The category ('add', 'edit', 'remove', 'info', 'general', 'inquiry')
     - `suggestion`: Message contents (prefixed with target domain/URL where applicable)
     - `Ttoken`: Cloudflare Turnstile verification token (fails with status 400 if validation fails)
+- /comments/api              ➔ Comment thread interactions:
+  * Parameters (Form URL-Encoded):
+    - `thread`: Thread path (e.g. "/s/anikoto")
+    - `reviewvotes`: Query/submit review vote counters
 
 --------------------------------------------------------------------------------
 6. API Integrations & Mapping Strategy (Python FastAPI)
 --------------------------------------------------------------------------------
 The FastAPI Web Service maps these reverse-engineered components into local JSON endpoints:
 - /categories               ➔ Mapped from category menus HTML definitions.
+- /categories/simple/all    ➔ Mapped from /simple all-in-one directory view (NEW).
 - /search                   ➔ Mapped from /backend/search POST actions.
 - /sites/{id}               ➔ Mapped by scraping site detail sub-pages (/s/slug).
 - /sites/{id}/expand        ➔ Mapped from /data/expand/{id}.json cached overlays.
 - /sites/{id}/comments      ➔ Mapped from /comments/threadcount.json count trackers.
+- /sites/{id}/thread        ➔ Mapped from /comments/cache/s-{slug}.json full comment discussions (NEW).
 - /graveyard                ➔ Mapped from graveyard HTML pages.
 - /activity                 ➔ Mapped from /comments/api?activity=true feeds.
 - /menu                     ➔ Mapped from /data/cache/menu.json config targets.
@@ -88,13 +103,15 @@ The FastAPI Web Service maps these reverse-engineered components into local JSON
 - /stats                    ➔ Mapped from /data/cache/site-stats.json files.
 - /stats/history/{date}     ➔ Mapped from /data/cache/statshistory/ date records.
 - /changelog                ➔ Mapped from /feeds/changelog.xml RSS feeds.
+- /changelog/full           ➔ Mapped from /data/changelog/changelog.txt 2,500+ historical records database (NEW).
 - /detector                 ➔ Mapped from /data/cache/isdown.json & /history.json.
-- /articles                 ➔ Mapped from /post/ HTML list items.
 - /detector/{site_id}       ➔ Monitored check details for a specific site.
-- /cache/main               ➔ Fetches and parses the main.json site expand database + section lists (NEW).
-- /cache/dead               ➔ Fetches and parses the dead.json site expand database + section lists (NEW).
-- /backend/info             ➔ Telemetry endpoint logging / proxying client platform parameters (NEW).
-- /backend/api              ➔ Suggestion form endpoint proxying contribution reports to upstream server (NEW).
-- /info                     ➔ Fetches and parses structured text sections from /post/info.html (NEW).
-- /kuroiru                  ➔ Fetches and parses structured text sections from /post/kuroiru.html (NEW).
+- /articles                 ➔ Mapped from /post/ HTML list items.
+- /cache/main               ➔ Fetches and parses the main.json site expand database + section lists.
+- /cache/dead               ➔ Fetches and parses the dead.json site expand database + section lists.
+- /backend/info             ➔ Telemetry endpoint logging / proxying client platform parameters.
+- /backend/api              ➔ Suggestion form endpoint proxying contribution reports to upstream server.
+- /info                     ➔ Fetches and parses structured text sections from /post/info.html.
+- /kuroiru                  ➔ Fetches and parses structured text sections from /post/kuroiru.html.
+- /rules                    ➔ Fetches and parses structured text sections from /post/rules.html (NEW).
 ================================================================================

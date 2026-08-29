@@ -230,3 +230,37 @@ class SuggestionPayload(BaseModel):
     Ttoken: str
 
 
+class ThreadComment(BaseModel):
+    """A user comment or reply in a discussion thread on EverythingMoe."""
+    id: int
+    message: str
+    created: int
+    username: str
+    pic: Optional[Any] = False
+    pic_url: Optional[str] = None
+    parent: int = 0
+    vote: int = 0
+    legacy: Optional[int] = None
+
+
+class ThreadDetails(BaseModel):
+    """Full discussion thread data with all comments, replies, and metadata."""
+    id: Optional[int] = None
+    uid: Optional[str] = None
+    title: Optional[str] = None
+    link: Optional[str] = None
+    created: Optional[int] = None
+    isclosed: bool = False
+    post_count: int = 0
+    pinned: List[ThreadComment] = Field(default_factory=list)
+    posts: List[ThreadComment] = Field(default_factory=list)
+
+
+class FullChangelogEntry(BaseModel):
+    """An entry from the complete EverythingMoe changelog database."""
+    timestamp: int
+    action_type: str  # 'add', 'removed', 're-add', 'updated', 'rejected', 'other'
+    message: str
+
+
+

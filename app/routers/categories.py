@@ -27,3 +27,13 @@ def get_category_items(category: str, client: EverythingMoeAPI = Depends(get_api
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch category items: {exc}")
+
+
+@router.get("/simple/all", response_model=Dict[str, List[SearchResult]], summary="Get complete directory in simple format")
+def get_simple_directory(client: EverythingMoeAPI = Depends(get_api_client)):
+    """Fetch all categories and all 780+ indexed sites in a single fast call from the EverythingMoe simple index."""
+    try:
+        return client.get_simple_directory()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch simple directory: {exc}")
+

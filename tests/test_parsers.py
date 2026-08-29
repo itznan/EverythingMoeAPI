@@ -12,8 +12,11 @@ from app.utils.parsers import (
     parse_articles,
     parse_cache_data,
     parse_info_page,
+    parse_thread_comments,
+    parse_full_changelog,
+    parse_simple_directory,
 )
-from app.models.schemas import SearchResult, SiteDetails, Review, Screenshot
+from app.models.schemas import SearchResult, SiteDetails, Review, Screenshot, ThreadDetails, ThreadComment, FullChangelogEntry
 
 def test_parse_categories():
     html = """
@@ -309,5 +312,118 @@ def test_parse_info_page():
     assert "Paragraph text description." in sections[0].content
     assert "List item 1" in sections[0].content
     assert "Click here (http://link.com)" in sections[0].content
+
+
+def test_parse_thread_comments():
+    raw_data = {
+        "id": 1,
+        "uid": "anikoto",
+        "title": "Anikoto Thread",
+        "link": "https://anikoto.com",
+        "created": 1700000000,
+        "isclosed": False,
+        "pinned": [
+            {
+                "id": 999,
+                "message": "Welcome to Anikoto discussion!",
+                "created": 1700000001,
+                "username": "Admin",
+                "pic": 456,
+                "parent": 0,
+                "vote": 50
+            }
+        ],
+        "post": [
+            {
+                "id": 101,
+                "message": "Great site, super fast!",
+                "created": 1700000010,
+                "username": "1:User1",
+                "pic": 123,
+                "parent": 0,
+                "vote": 5
+            },
+            {
+                "id": 102,
+                "message": "Agreed!",
+                "created": 1700000020,
+                "username": "User2",
+                "pic": False,
+                "parent": 101,
+                "vote": 2
+            }
+        ]
+    }
+    thread = parse_thread_comments(raw_data, "https://everythingmoe.com")
+    assert thread.title == "Anikoto Thread"
+    assert thread.post_count == 2
+    assert len(thread.pinned) == 1
+    assert thread.pinned[0].username == "Admin"
+    assert thread.pinned[0].pic_url == "https://everythingmoe.com/comments/pic/456.jpg"
+    assert thread.posts[0].username == "User1"
+    assert thread.posts[0].pic_url == "https://everythingmoe.com/comments/pic/123.jpg"
+    assert thread.posts[1].parent == 101
+    assert thread.posts[1].pic_url is None
+
+
+def test_parse_full_changelog():
+    raw_text = """
+    1787736011#add > ReChapters, novel reading site
+    1787736289#updated Anistream info & rank
+    1787812456#removed > 1Anime, Shiroko, site broken
+    1787813167#re-add > AniCipse, anime streaming site
+    1787816415#rejected > BadSite, malware
+    1787816500#Other maintenance notice
+    """
+    entries = parse_full_changelog(raw_text)
+    assert len(entries) == 6
+    assert entries[0].action_type == "add"
+    assert entries[0].timestamp == 1787736011
+    assert entries[1].action_type == "updated"
+    assert entries[2].action_type == "removed"
+    assert entries[3].action_type == "re-add"
+    assert entries[4].action_type == "rejected"
+    assert entries[5].action_type == "other"
+
+
+def test_parse_simple_directory():
+    html = """
+    <html>
+        <body>
+            <div class="index-group" id="sec-anime">
+                <span class="index-section">Anime Streaming</span>
+                <div class="index-grid">
+                    <div class="index-item" data-rank="1">
+                        1.
+                        <a href="/s/anikoto" data-link="https://anikototv.to">
+                            <img src="/icons/anikoto.png" />
+                            Anikoto
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="index-group" id="sec-manga">
+                <span class="index-section">Manga Reading</span>
+                <div class="index-grid">
+                    <div class="index-item" data-rank="1">
+                        1.
+                        <a href="/s/mangadex" data-link="https://mangadex.org">
+                            <img src="/icons/mangadex.png" />
+                            MangaDex
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </body>
+    </html>
+    """
+    cats = parse_simple_directory(html)
+    assert "anime" in cats
+    assert len(cats["anime"]) == 1
+    assert cats["anime"][0].id == "anikoto"
+    assert cats["anime"][0].url == "https://anikototv.to"
+    assert "manga" in cats
+    assert cats["manga"][0].id == "mangadex"
+
 
 

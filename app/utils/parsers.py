@@ -7,6 +7,12 @@ from typing import Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup, Tag, NavigableString
 
+try:
+    import lxml  # noqa: F401
+    HTML_PARSER = "lxml"
+except ImportError:
+    HTML_PARSER = "html.parser"
+
 from app.models.schemas import (
     ChangelogEntry,
     ChangelogRSS,
@@ -27,6 +33,9 @@ from app.models.schemas import (
     CacheSectionEntry,
     CacheData,
     InfoSection,
+    ThreadComment,
+    ThreadDetails,
+    FullChangelogEntry,
 )
 
 logger = logging.getLogger("everythingmoe")
@@ -34,7 +43,7 @@ logger = logging.getLogger("everythingmoe")
 
 def parse_categories(html: str) -> Dict[str, str]:
     """Extract the category dropdown options from the homepage HTML."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, HTML_PARSER)
     select = soup.find("select", id="section-input")
     if not select:
         return {}
@@ -88,7 +97,7 @@ def _parse_item_div(div: Tag, category: str) -> Optional[SearchResult]:
 
 def parse_section_items(html: str, category: str) -> Tuple[List[SearchResult], bool]:
     """Extract high-ranked items from a homepage section."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, HTML_PARSER)
     sec_div = soup.find(id=f"sec-{category}")
     if not sec_div:
         return [], False
@@ -133,7 +142,7 @@ def parse_lowsec_items(data: list, category: str, start_rank: int) -> List[Searc
 
 def parse_graveyard_items(html: str) -> List[SearchResult]:
     """Extract dead sites from the ``/graveyard`` HTML page."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, HTML_PARSER)
     items: List[SearchResult] = []
     for div in soup.find_all(class_="section-item"):
         if "section-expandbtn" in div.get("class", []):
@@ -191,7 +200,7 @@ def parse_altlinks(altlink_str: Optional[str], base_url: str = "") -> Dict[str, 
 
 def parse_site_data(html: str, base_url: str = "") -> Optional[SiteDetails]:
     """Extract the ``var siteData = {...};`` block from a detail page and parse it."""
-    soup = BeautifulSoup(html, "html.parser")
+    soup = BeautifulSoup(html, HTML_PARSER)
     raw: Optional[dict] = None
     for script in soup.find_all("script"):
         if script.string and "var siteData =" in script.string:
@@ -320,17 +329,27 @@ def parse_stats_history(data: dict, date: str) -> StatsHistory:
     )
 
 
-def _split_list(raw: str) -> List[str]:
-    """Split a '#'-delimited string into a clean list, ignoring empty entries."""
-    return [x.strip() for x in raw.split("#") if x.strip()] if raw else []
-
-
-def _split_extra_links(raw: str) -> List[str]:
-    """Split extra-link / extralink values (comma or '#' separated URLs)."""
+def _split_list(raw: Any) -> List[str]:
+    """Split a '#'-delimited string or normalize a list into a clean list, ignoring empty entries."""
     if not raw:
         return []
-    parts = raw.split("#") if "#" in raw else raw.split(",")
-    return [p.strip() for p in parts if p.strip()]
+    if isinstance(raw, list):
+        return [str(x).strip() for x in raw if str(x).strip()]
+    if isinstance(raw, str):
+        return [x.strip() for x in raw.split("#") if x.strip()]
+    return [str(raw).strip()]
+
+
+def _split_extra_links(raw: Any) -> List[str]:
+    """Split extra-link / extralink values (comma or '#' separated URLs, or list)."""
+    if not raw:
+        return []
+    if isinstance(raw, list):
+        return [str(p).strip() for p in raw if str(p).strip()]
+    if isinstance(raw, str):
+        parts = raw.split("#") if "#" in raw else raw.split(",")
+        return [p.strip() for p in parts if p.strip()]
+    return [str(raw).strip()]
 
 
 def parse_expand(data: dict, base_url: str = "") -> SiteExpand:
@@ -373,7 +392,10 @@ def parse_expand(data: dict, base_url: str = "") -> SiteExpand:
 
 def parse_changelog_rss(xml_content: str) -> ChangelogRSS:
     """Parse the changelog RSS feed XML into :class:`ChangelogRSS`."""
-    soup = BeautifulSoup(xml_content, "xml")
+    try:
+        soup = BeautifulSoup(xml_content, "xml")
+    except Exception:
+        soup = BeautifulSoup(xml_content, HTML_PARSER)
     items: List[ChangelogRSSItem] = []
     
     for item in soup.find_all("item"):
@@ -420,7 +442,7 @@ def parse_detector_status(status_data: dict, history_data: dict = None) -> Detec
 
 def parse_articles(html_content: str, base_url: str = "") -> List[ArticleEntry]:
     """Parse EverythingMoe articles page HTML list into ArticleEntry objects."""
-    soup = BeautifulSoup(html_content, "html.parser")
+    soup = BeautifulSoup(html_content, HTML_PARSER)
     articles = []
     
     for a_tag in soup.find_all("a"):
@@ -482,7 +504,7 @@ def parse_cache_data(data: dict, base_url: str = "") -> CacheData:
 
 def parse_info_page(html_content: str) -> List[InfoSection]:
     """Parse EverythingMoe's informational pages (info.html, kuroiru.html) into structured InfoSection list."""
-    soup = BeautifulSoup(html_content, "html.parser")
+    soup = BeautifulSoup(html_content, HTML_PARSER)
     base = soup.find(id="about-base")
     if not base:
         base = soup.find("body") or soup
@@ -526,5 +548,146 @@ def parse_info_page(html_content: str) -> List[InfoSection]:
         sections.append(InfoSection(title=title, content=clean_content))
 
     return sections
+
+
+def parse_thread_comments(data: dict, base_url: str = "") -> ThreadDetails:
+    """Parse a full discussion thread JSON (from /comments/cache/{clean_path}.json) into ThreadDetails."""
+    raw_posts = data.get("post", [])
+    posts: List[ThreadComment] = []
+    
+    for item in raw_posts:
+        if not isinstance(item, dict):
+            continue
+        username = item.get("username") or item.get("name", "")
+        if isinstance(username, str) and username.startswith("1:"):
+            username = username[2:]
+        
+        pic = item.get("pic", False)
+        pic_url = None
+        if pic and str(pic) != "False":
+            pic_url = f"{base_url.rstrip('/')}/comments/pic/{pic}.jpg" if base_url else f"/comments/pic/{pic}.jpg"
+            
+        posts.append(ThreadComment(
+            id=int(item.get("id", 0)),
+            message=str(item.get("message", "")),
+            created=int(item.get("created", 0)),
+            username=str(username),
+            pic=pic,
+            pic_url=pic_url,
+            parent=int(item.get("parent", 0)),
+            vote=int(item.get("vote", 0)),
+            legacy=item.get("legacy"),
+        ))
+
+    pinned: List[ThreadComment] = []
+    for item in data.get("pinned", []):
+        if isinstance(item, dict):
+            username = item.get("username") or item.get("name", "")
+            if isinstance(username, str) and username.startswith("1:"):
+                username = username[2:]
+            pic = item.get("pic", False)
+            pic_url = f"{base_url.rstrip('/')}/comments/pic/{pic}.jpg" if pic and base_url else (f"/comments/pic/{pic}.jpg" if pic else None)
+            pinned.append(ThreadComment(
+                id=int(item.get("id", 0)),
+                message=str(item.get("message", "")),
+                created=int(item.get("created", 0)),
+                username=str(username),
+                pic=pic,
+                pic_url=pic_url,
+                parent=int(item.get("parent", 0)),
+                vote=int(item.get("vote", 0)),
+                legacy=item.get("legacy"),
+            ))
+
+    return ThreadDetails(
+        id=data.get("id"),
+        uid=data.get("uid"),
+        title=data.get("title"),
+        link=data.get("link"),
+        created=data.get("created"),
+        isclosed=bool(data.get("isclosed", False)),
+        post_count=len(posts),
+        pinned=pinned,
+        posts=posts,
+    )
+
+
+def parse_full_changelog(raw_text: str) -> List[FullChangelogEntry]:
+    """Parse the complete changelog database from /data/changelog/changelog.txt into FullChangelogEntry list."""
+    entries: List[FullChangelogEntry] = []
+    lines = raw_text.strip().split("\n")
+    
+    for line in lines:
+        line = line.strip()
+        if not line or "#" not in line:
+            continue
+        parts = line.split("#", 1)
+        try:
+            ts = int(parts[0].strip())
+        except ValueError:
+            continue
+        msg = parts[1].strip()
+        
+        msg_lower = msg.lower()
+        if msg_lower.startswith("add >"):
+            action = "add"
+        elif msg_lower.startswith("removed >"):
+            action = "removed"
+        elif msg_lower.startswith("rejected >"):
+            action = "rejected"
+        elif msg_lower.startswith("re-add >"):
+            action = "re-add"
+        elif "updated" in msg_lower:
+            action = "updated"
+        else:
+            action = "other"
+            
+        entries.append(FullChangelogEntry(
+            timestamp=ts,
+            action_type=action,
+            message=msg,
+        ))
+    return entries
+
+
+def parse_simple_directory(html: str) -> Dict[str, List[SearchResult]]:
+    """Parse the lightweight full directory at /simple into categories of SearchResults."""
+    soup = BeautifulSoup(html, HTML_PARSER)
+    categories: Dict[str, List[SearchResult]] = {}
+    
+    for group in soup.find_all(class_="index-group"):
+        group_id = group.get("id", "")
+        if not group_id.startswith("sec-") or group_id == "sec-topcontainer":
+            continue
+        cat_name = group_id.replace("sec-", "")
+        items: List[SearchResult] = []
+        
+        for item_div in group.find_all(class_="index-item"):
+            a_tag = item_div.find("a")
+            if not a_tag:
+                continue
+            href = a_tag.get("href", "")
+            slug = href.replace("/s/", "")
+            url = a_tag.get("data-link", "") or href
+            title = a_tag.text.strip()
+            
+            img_tag = a_tag.find("img")
+            icon_url = img_tag.get("src", "") if img_tag else ""
+            
+            rank_val = item_div.get("data-rank", "")
+            rank = f"{rank_val} {cat_name.capitalize()}" if rank_val else cat_name.capitalize()
+            
+            items.append(SearchResult(
+                id=slug,
+                title=title,
+                url=url,
+                icon_url=icon_url,
+                rank=rank,
+                type=cat_name,
+                filter_tags=[],
+            ))
+        categories[cat_name] = items
+    return categories
+
 
 

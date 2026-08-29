@@ -24,3 +24,13 @@ def get_kuroiru_page(client: EverythingMoeAPI = Depends(get_api_client)):
         return client.get_kuroiru_page()
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch Kuroiru sub-project details: {exc}")
+
+
+@router.get("/rules", response_model=List[InfoSection], summary="Get Community Guidelines and Rules")
+def get_rules_page(client: EverythingMoeAPI = Depends(get_api_client)):
+    """Fetch and parse community guidelines, review policies, and commenting rules."""
+    try:
+        return client.get_rules_page()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch rules page: {exc}")
+

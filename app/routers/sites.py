@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.dependencies import get_api_client
-from app.models.schemas import SiteDetails, SiteExpand, SiteCommentCount
+from app.models.schemas import SiteDetails, SiteExpand, SiteCommentCount, ThreadDetails
 from app.utils.client import EverythingMoeAPI
 from app.utils.exceptions import EverythingMoeNotFoundError
 
@@ -43,3 +43,15 @@ def get_site_comment_count(id_or_slug: str, client: EverythingMoeAPI = Depends(g
         raise HTTPException(status_code=404, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to fetch comment count: {exc}")
+
+
+@router.get("/{id_or_slug}/thread", response_model=ThreadDetails, summary="Get full discussion thread and comments for a site")
+def get_site_thread(id_or_slug: str, client: EverythingMoeAPI = Depends(get_api_client)):
+    """Fetch the complete discussion thread with all user comments, replies, upvotes, and avatars for a site."""
+    try:
+        return client.get_site_thread(id_or_slug)
+    except EverythingMoeNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch site thread: {exc}")
+

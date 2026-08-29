@@ -4,7 +4,13 @@ from fastapi.testclient import TestClient
 
 from app.api.main import app
 from app.api.dependencies import get_api_client
-from app.models.schemas import SearchResult, SiteDetails, Review, Screenshot, RecentActivity, ChangelogEntry, DetectorStatus, ArticleEntry, DetectorSiteStatus, CacheData, InfoSection
+from app.models.schemas import (
+    SearchResult, SiteDetails, Review, Screenshot, RecentActivity, ChangelogEntry,
+    DetectorStatus, ArticleEntry, DetectorSiteStatus, CacheData, InfoSection,
+    SiteExpand, SiteCommentCount, CategoryMenuItem, TagDefinition, SiteStats,
+    StatsHistory, ChangelogRSS, ChangelogRSSItem, ThreadDetails, ThreadComment,
+    FullChangelogEntry,
+)
 from app.utils.exceptions import EverythingMoeNotFoundError
 
 mock_client = MagicMock()
@@ -259,6 +265,120 @@ def test_get_kuroiru_page():
     assert len(data) == 1
     assert data[0]["title"] == "Tracker"
     mock_client.get_kuroiru_page.assert_called_once()
+
+
+def test_get_site_expand_api():
+    mock_client.get_site_expand.reset_mock()
+    mock_client.get_site_expand.return_value = SiteExpand(positive_reviews=["Fast"])
+    response = client.get("/sites/anikoto/expand")
+    assert response.status_code == 200
+    assert response.json()["positive_reviews"] == ["Fast"]
+    mock_client.get_site_expand.assert_called_once_with("anikoto")
+
+
+def test_get_site_comments_api():
+    mock_client.get_site_comment_count.reset_mock()
+    mock_client.get_site_comment_count.return_value = SiteCommentCount(site_id="anikoto", comment_count=10, review_count=0)
+    response = client.get("/sites/anikoto/comments")
+    assert response.status_code == 200
+    assert response.json()["comment_count"] == 10
+    mock_client.get_site_comment_count.assert_called_once_with("anikoto")
+
+
+def test_get_menu_api():
+    mock_client.get_menu.reset_mock()
+    mock_client.get_menu.return_value = [CategoryMenuItem(id="streaming", short="Anime")]
+    response = client.get("/menu")
+    assert response.status_code == 200
+    assert response.json()[0]["id"] == "streaming"
+    mock_client.get_menu.assert_called_once()
+
+
+def test_get_tags_api():
+    mock_client.get_tags.reset_mock()
+    mock_client.get_tags.return_value = [TagDefinition(tag="Torrent", description="Torrent files")]
+    response = client.get("/tags")
+    assert response.status_code == 200
+    assert response.json()[0]["tag"] == "Torrent"
+    mock_client.get_tags.assert_called_once()
+
+
+def test_get_stats_api():
+    mock_client.get_stats.reset_mock()
+    mock_client.get_stats.return_value = SiteStats(entries=100, category=20, users=50, comments=300, reviews=40, time=12345)
+    response = client.get("/stats")
+    assert response.status_code == 200
+    assert response.json()["entries"] == 100
+    mock_client.get_stats.assert_called_once()
+
+
+def test_get_stats_history_api():
+    mock_client.get_stats_history.reset_mock()
+    mock_client.get_stats_history.return_value = StatsHistory(date="20260101", entries=90, category=19, users=40, comments=200, reviews=30, time=12300)
+    response = client.get("/stats/history/20260101")
+    assert response.status_code == 200
+    assert response.json()["date"] == "20260101"
+    mock_client.get_stats_history.assert_called_once_with("20260101")
+
+
+def test_get_changelog_api():
+    mock_client.get_changelog.reset_mock()
+    mock_client.get_changelog.return_value = ChangelogRSS(items=[ChangelogRSSItem(title="Update", link="http://test.com", guid="1", pub_date="2026-01-01")])
+    response = client.get("/changelog")
+    assert response.status_code == 200
+    assert len(response.json()["items"]) == 1
+    mock_client.get_changelog.assert_called_once()
+
+
+def test_get_site_thread_api():
+    mock_client.get_site_thread.reset_mock()
+    mock_client.get_site_thread.return_value = ThreadDetails(
+        title="Anikoto Thread",
+        post_count=1,
+        posts=[ThreadComment(id=1, message="nice", created=123, username="user1")]
+    )
+    response = client.get("/sites/anikoto/thread")
+    assert response.status_code == 200
+    assert response.json()["title"] == "Anikoto Thread"
+    assert response.json()["post_count"] == 1
+    mock_client.get_site_thread.assert_called_once_with("anikoto")
+
+
+def test_get_full_changelog_api():
+    mock_client.get_full_changelog.reset_mock()
+    mock_client.get_full_changelog.return_value = [
+        FullChangelogEntry(timestamp=12345, action_type="add", message="add > Site X")
+    ]
+    response = client.get("/changelog/full?action=add&limit=10")
+    assert response.status_code == 200
+    assert len(response.json()) == 1
+    assert response.json()[0]["action_type"] == "add"
+    mock_client.get_full_changelog.assert_called_once_with(action="add", limit=10)
+
+
+def test_get_rules_page_api():
+    mock_client.get_rules_page.reset_mock()
+    mock_client.get_rules_page.return_value = [
+        InfoSection(title="Community Rules", content=["Be respectful."])
+    ]
+    response = client.get("/rules")
+    assert response.status_code == 200
+    assert response.json()[0]["title"] == "Community Rules"
+    mock_client.get_rules_page.assert_called_once()
+
+
+def test_get_simple_directory_api():
+    mock_client.get_simple_directory.reset_mock()
+    mock_client.get_simple_directory.return_value = {
+        "anime": [SearchResult(id="anikoto", title="Anikoto", url="http://anikoto.com", icon_url="", rank="1 Anime", type="anime", filter_tags=[])]
+    }
+    response = client.get("/categories/simple/all")
+    assert response.status_code == 200
+    assert "anime" in response.json()
+    assert response.json()["anime"][0]["id"] == "anikoto"
+    mock_client.get_simple_directory.assert_called_once()
+
+
 
 
 
